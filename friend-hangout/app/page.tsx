@@ -363,7 +363,7 @@ export default function Home() {
                       Generated Hangout Itinerary
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Curated Austin schedule crafted for {preferences.groupName}. Drag stops to customize order.
+                      Curated Austin schedule crafted for {preferences.groupName}. Click any stop to choose AI alternatives or drag to reorder.
                     </p>
                   </div>
                 </div>
@@ -372,6 +372,8 @@ export default function Home() {
                   currentPlan={currentPlan}
                   friends={preferences.friends}
                   groupName={preferences.groupName}
+                  maxBudgetPerPerson={preferences.maxBudgetPerPerson}
+                  selectedInterests={preferences.selectedInterests}
                 />
               </div>
             </div>
