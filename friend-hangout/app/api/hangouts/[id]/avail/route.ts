@@ -11,6 +11,7 @@ export async function POST(
     const body = (await req.json()) as {
       friendId: string;
       friendName?: string;
+      avatarColor?: string;
       startTime: string;
       endTime: string;
       budgetPreference?: number;
@@ -26,6 +27,7 @@ export async function POST(
 
     const success = updateFriendSubmission(id, body.friendId, {
       friendName: body.friendName,
+      avatarColor: body.avatarColor,
       startTime: body.startTime,
       endTime: body.endTime,
       budgetPreference: body.budgetPreference,

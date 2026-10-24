@@ -1,0 +1,14 @@
+{
+  "name": "txmates",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "friend-hangout"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=friend-hangout",
+    "build": "npm run build --workspace=friend-hangout",
+    "start": "npm run start --workspace=friend-hangout",
+    "lint": "npm run lint --workspace=friend-hangout"
+  }
+}

@@ -1,0 +1,17 @@
+# Auto-detect text files and normalize line endings to LF on checkout across OSes
+* text=auto eol=lf
+
+# Code and assets
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+*.svg text eol=lf
+
+# Windows-specific scripts (if any)
+*.bat text eol=crlf
+*.cmd text eol=crlf

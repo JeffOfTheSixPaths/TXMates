@@ -594,27 +594,23 @@ export function HangoutForm({
               </div>
             </div>
 
-            <div className="mt-4">
-              <input
-                type="range"
-                min="10"
-                max="150"
-                step="5"
-                value={preferences.maxBudgetPerPerson}
-                onChange={(e) =>
-                  onChange({
-                    ...preferences,
-                    maxBudgetPerPerson: Number(e.target.value),
-                  })
-                }
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-teal-600 transition"
-              />
-              <div className="mt-1.5 flex justify-between text-[11px] font-medium text-slate-400">
-                <span>$10 (Park & Tacos)</span>
-                <span>$50 (Balanced Outing)</span>
-                <span>$100 (Shows & BBQ)</span>
-                <span>$150+ (VIP Austin)</span>
-              </div>
+            {/* Quick Preset Buttons */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400 mr-1">Quick pick:</span>
+              {[15, 30, 50, 75, 100, 150].map((amt) => (
+                <button
+                  type="button"
+                  key={amt}
+                  onClick={() => onChange({ ...preferences, maxBudgetPerPerson: amt })}
+                  className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                    preferences.maxBudgetPerPerson === amt
+                      ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-2xs font-bold ring-1 ring-teal-500/30'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  ${amt}
+                </button>
+              ))}
             </div>
 
             <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-xs text-slate-600 border border-slate-200">

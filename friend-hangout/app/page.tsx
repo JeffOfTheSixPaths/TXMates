@@ -38,9 +38,34 @@ export default function Home() {
   const [shortlist, setShortlist] = useState<Activity[]>([]);
   const [activeTab, setActiveTab] = useState<'planner' | 'discovery'>('planner');
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-  // Sync to SQL on preference changes
+  // Load existing hangout on initial mount
   useEffect(() => {
+    async function loadHangout() {
+      try {
+        const res = await fetch(`/api/hangouts?id=${preferences.id || 'txmates-demo'}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.hangout && data.hangout.friends && data.hangout.friends.length > 0) {
+            setPreferences((prev) => ({
+              ...prev,
+              ...data.hangout,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load initial hangout:', err);
+      } finally {
+        setIsInitialLoaded(true);
+      }
+    }
+    loadHangout();
+  }, [preferences.id]);
+
+  // Sync to SQL on preference changes (after initial load)
+  useEffect(() => {
+    if (!isInitialLoaded) return;
     const timer = setTimeout(() => {
       fetch('/api/hangouts', {
         method: 'POST',
@@ -50,7 +75,7 @@ export default function Home() {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [preferences]);
+  }, [preferences, isInitialLoaded]);
 
   // Poll for When2Meet submissions from friends
   useEffect(() => {
@@ -60,41 +85,50 @@ export default function Home() {
         if (res.ok) {
           const data = await res.json();
           if (data.hangout && data.hangout.friends) {
-            // Check if any friend's time or status changed
             let hasChange = false;
             let updatedFriendName = '';
 
             const currentMap = new Map(preferences.friends.map((f) => [f.id, f]));
-            data.hangout.friends.forEach((remoteFriend: Friend) => {
-              const local = currentMap.get(remoteFriend.id);
-              if (local) {
-                const remoteSlot = remoteFriend.availabilitySlots[0];
-                const localSlot = local.availabilitySlots[0];
-                if (
-                  remoteFriend.status === 'submitted' &&
-                  local.status !== 'submitted'
-                ) {
-                  hasChange = true;
-                  updatedFriendName = remoteFriend.name;
-                } else if (
-                  remoteSlot &&
-                  localSlot &&
-                  (remoteSlot.startTime !== localSlot.startTime ||
-                    remoteSlot.endTime !== localSlot.endTime)
-                ) {
-                  hasChange = true;
-                  updatedFriendName = remoteFriend.name;
+
+            // Detect if a new friend added their name via the link!
+            if (data.hangout.friends.length !== preferences.friends.length) {
+              hasChange = true;
+              const newFriends = data.hangout.friends.filter((f: Friend) => !currentMap.has(f.id));
+              updatedFriendName = newFriends.map((f: Friend) => f.name).join(', ') || 'A new friend';
+            } else {
+              // Check if any existing friend updated hours or status
+              data.hangout.friends.forEach((remoteFriend: Friend) => {
+                const local = currentMap.get(remoteFriend.id);
+                if (local) {
+                  const remoteSlot = remoteFriend.availabilitySlots[0];
+                  const localSlot = local.availabilitySlots[0];
+                  if (
+                    remoteFriend.status === 'submitted' &&
+                    local.status !== 'submitted'
+                  ) {
+                    hasChange = true;
+                    updatedFriendName = remoteFriend.name;
+                  } else if (
+                    remoteSlot &&
+                    localSlot &&
+                    (remoteSlot.startTime !== localSlot.startTime ||
+                      remoteSlot.endTime !== localSlot.endTime)
+                  ) {
+                    hasChange = true;
+                    updatedFriendName = remoteFriend.name;
+                  }
                 }
-              }
-            });
+              });
+            }
 
             if (hasChange) {
               setPreferences((prev) => ({
                 ...prev,
                 friends: data.hangout.friends,
+                friendCount: data.hangout.friends.length,
               }));
               setLastSyncNotice(
-                `🎉 ${updatedFriendName || 'A friend'} updated their available times via When2Meet link! Overlap recalculated.`
+                `🎉 ${updatedFriendName || 'A friend'} joined / updated their times via When2Meet link! Overlap recalculated.`
               );
               setTimeout(() => setLastSyncNotice(null), 6000);
             }
