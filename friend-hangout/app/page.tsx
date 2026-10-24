@@ -360,22 +360,16 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold tracking-tight text-[#0F172A]">
-                      Generated Hangout Solutions
+                      Generated Hangout Itinerary
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Switch between 3 strategic planning modes crafted for {preferences.groupName}.
+                      Curated Austin schedule crafted for {preferences.groupName}.
                     </p>
                   </div>
-
-                  <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 border border-teal-200/80">
-                    Active View: {activeView.toUpperCase()}
-                  </span>
                 </div>
 
                 <PlanningViews
                   currentPlan={currentPlan}
-                  activeView={activeView}
-                  onSelectView={setActiveView}
                   friends={preferences.friends}
                   groupName={preferences.groupName}
                 />
