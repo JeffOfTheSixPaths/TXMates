@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import {
-  Sparkles,
   DollarSign,
   Clock,
   MapPin,
@@ -10,28 +9,38 @@ import {
   ThumbsUp,
   Heart,
   Lock,
-  TrendingDown,
   ShieldCheck,
-  Award,
-  Zap,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  Download,
 } from 'lucide-react';
-import { HangoutPlan, PlanningViewType, Friend } from '@/types';
+import { HangoutPlan, PlanningViewType, Friend, ItineraryItem } from '@/types';
+import { exportItineraryAsPng } from '@/lib/exportPng';
 
 interface PlanningViewsProps {
   currentPlan: HangoutPlan;
-  activeView: PlanningViewType;
-  onSelectView: (view: PlanningViewType) => void;
+  activeView?: PlanningViewType;
+  onSelectView?: (view: PlanningViewType) => void;
   friends: Friend[];
   groupName: string;
 }
 
 export function PlanningViews({
   currentPlan,
-  activeView,
-  onSelectView,
   friends,
   groupName,
 }: PlanningViewsProps) {
+  // Itinerary custom order state to support drag-and-drop reordering without cascading effect renders
+  const [customOrder, setCustomOrder] = useState<{ planId: string; items: ItineraryItem[] } | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Active itinerary: uses customized drag-and-drop order if for the current plan, else original plan itinerary
+  const itinerary = customOrder && customOrder.planId === currentPlan.id
+    ? customOrder.items
+    : currentPlan.itinerary;
+
   // Friend votes state
   const [votes, setVotes] = useState<Record<string, 'up' | 'love' | null>>({
     'f-1': 'up',
@@ -39,13 +48,61 @@ export function PlanningViews({
     'f-3': 'up',
   });
   const [isLocked, setIsLocked] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Reorder itinerary items and maintain chronological time slots
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= itinerary.length) return;
+    const updated = [...itinerary];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+
+    // Keep chronological time slots aligned with their positions
+    const reorderedWithTimes = updated.map((item, idx) => ({
+      ...item,
+      timeSlot: currentPlan.itinerary[idx]?.timeSlot || item.timeSlot,
+    }));
+
+    setCustomOrder({
+      planId: currentPlan.id,
+      items: reorderedWithTimes,
+    });
+  };
+
+  // Export current itinerary to high-res PNG
+  const handleExportPng = () => {
+    setIsExporting(true);
+    try {
+      exportItineraryAsPng({
+        groupName,
+        items: itinerary,
+        plan: currentPlan,
+        friends,
+      });
+      setExportNotice('📸 Itinerary exported as PNG to your downloads!');
+      setTimeout(() => setExportNotice(null), 5000);
+    } catch (err) {
+      console.error('Failed to export itinerary as PNG:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Toggle lock state and export PNG when locked
+  const handleToggleLock = () => {
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    if (nextLocked) {
+      handleExportPng();
+    }
+  };
 
   // Cast vote for a friend
   const handleVote = (friendId: string, type: 'up' | 'love') => {
     setVotes((prev) => {
       const current = prev[friendId];
       if (current === type) {
-        // Toggle off
         const next = { ...prev };
         delete next[friendId];
         return next;
@@ -60,122 +117,22 @@ export function PlanningViews({
 
   return (
     <div className="space-y-6">
-      {/* View Tabs Switcher */}
-      <div className="rounded-2xl border border-[#E8E2D8] bg-white p-3 shadow-xs">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {/* Export Confirmation Toast */}
+      {exportNotice && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-900 shadow-xs animate-in slide-in-from-top">
+          <div className="flex items-center gap-2">
+            <Download className="h-4 w-4 text-emerald-600" />
+            <span>{exportNotice}</span>
+          </div>
           <button
             type="button"
-            onClick={() => onSelectView('overall')}
-            className={`flex flex-col items-start rounded-xl p-3.5 text-left transition ${
-              activeView === 'overall'
-                ? 'bg-gradient-to-br from-teal-700 to-teal-800 text-white shadow-md'
-                : 'bg-[#FAF7F2]/50 text-slate-700 hover:bg-[#FAF7F2]'
-            }`}
+            onClick={handleExportPng}
+            className="rounded bg-emerald-700 px-2.5 py-1 text-[11px] text-white hover:bg-emerald-800 transition"
           >
-            <div className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-                <Award className={`h-4 w-4 ${activeView === 'overall' ? 'text-amber-300' : 'text-teal-700'}`} />
-                Best Overall Match
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  activeView === 'overall'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-teal-50 text-teal-800'
-                }`}
-              >
-                94% Match
-              </span>
-            </div>
-            <p className={`mt-1.5 text-xs ${activeView === 'overall' ? 'text-teal-100' : 'text-slate-500'}`}>
-              Equilibrium of group interests, budget comfort & seamless travel.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSelectView('cheapest')}
-            className={`flex flex-col items-start rounded-xl p-3.5 text-left transition ${
-              activeView === 'cheapest'
-                ? 'bg-gradient-to-br from-teal-700 to-teal-800 text-white shadow-md'
-                : 'bg-[#FAF7F2]/50 text-slate-700 hover:bg-[#FAF7F2]'
-            }`}
-          >
-            <div className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-                <TrendingDown className={`h-4 w-4 ${activeView === 'cheapest' ? 'text-amber-300' : 'text-emerald-700'}`} />
-                Cheapest Option
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  activeView === 'cheapest'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-emerald-50 text-emerald-800'
-                }`}
-              >
-                Max Savings
-              </span>
-            </div>
-            <p className={`mt-1.5 text-xs ${activeView === 'cheapest' ? 'text-teal-100' : 'text-slate-500'}`}>
-              Wallet-friendly Austin classics optimized by Nessie financial simulation.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSelectView('interests')}
-            className={`flex flex-col items-start rounded-xl p-3.5 text-left transition ${
-              activeView === 'interests'
-                ? 'bg-gradient-to-br from-teal-700 to-teal-800 text-white shadow-md'
-                : 'bg-[#FAF7F2]/50 text-slate-700 hover:bg-[#FAF7F2]'
-            }`}
-          >
-            <div className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-                <Zap className={`h-4 w-4 ${activeView === 'interests' ? 'text-amber-300' : 'text-sky-700'}`} />
-                Best Activity Match
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  activeView === 'interests'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-sky-50 text-sky-800'
-                }`}
-              >
-                96% Interest Fit
-              </span>
-            </div>
-            <p className={`mt-1.5 text-xs ${activeView === 'interests' ? 'text-teal-100' : 'text-slate-500'}`}>
-              Deep-dive into your group’s highest-affinity interests & passions.
-            </p>
+            Download Again
           </button>
         </div>
-      </div>
-
-      {/* Meta Muse Spark AI Plan Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50 via-white to-sky-50 p-5 shadow-xs">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-xs">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <div className="flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">
-                {currentPlan.title}
-              </h3>
-              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
-                Meta Muse Spark AI
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-slate-600">
-              {currentPlan.subtitle}
-            </p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-700 italic border-l-2 border-purple-400 pl-2.5">
-              “{currentPlan.aiRationale}”
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Capital One Nessie Budget & Cost Breakdown */}
       <div className="rounded-2xl border border-[#E8E2D8] bg-white p-5 shadow-sm sm:p-6">
@@ -223,7 +180,7 @@ export function PlanningViews({
             <div className="mt-1 text-xl font-black text-teal-900">
               ${currentPlan.totalCostPerPerson.toFixed(0)}
             </div>
-            <span className="text-[10px] text-slate-400">for 3 planned spots</span>
+            <span className="text-[10px] text-slate-400">for {itinerary.length} planned spots</span>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-[#FAF7F2]/60 p-3 text-center">
@@ -266,42 +223,116 @@ export function PlanningViews({
         </div>
       </div>
 
-      {/* Proposed Itinerary Timeline */}
+      {/* Proposed Itinerary Timeline with Drag-and-Drop */}
       <div className="rounded-2xl border border-[#E8E2D8] bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-col gap-1 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-slate-900">
                 Proposed Itinerary Schedule
               </h3>
               <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">
-                {currentPlan.itinerary.length} Stops
+                {itinerary.length} Stops
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Chronologically scheduled based on group availability overlap.
+              {isLocked
+                ? 'Itinerary is locked and finalized for the squad.'
+                : 'Drag stops around or use arrows to adjust the schedule order.'}
             </p>
           </div>
 
-          <div className="mt-2 text-xs font-medium text-slate-600 sm:mt-0">
-            Crew: <span className="font-bold text-teal-800">{groupName}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {!isLocked ? (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-teal-200/80 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                <GripVertical className="h-3.5 w-3.5 text-teal-600" />
+                Drag to Reorder Stops
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                <Lock className="h-3.5 w-3.5" />
+                Itinerary Locked
+              </span>
+            )}
+
+            {isLocked && (
+              <button
+                type="button"
+                onClick={handleExportPng}
+                disabled={isExporting}
+                className="inline-flex items-center gap-1 rounded-lg border border-teal-600 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-teal-100 transition shadow-2xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export PNG
+              </button>
+            )}
           </div>
         </div>
 
         {/* Timeline Sequence */}
         <div className="relative pl-6 space-y-6 before:absolute before:bottom-3 before:top-3 before:left-2.5 before:w-0.5 before:bg-teal-200">
-          {currentPlan.itinerary.map((item, idx) => (
+          {itinerary.map((item, idx) => (
             <div key={item.activity.id} className="relative">
               {/* Timeline marker */}
-              <div className="absolute -left-6 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-teal-700 text-[10px] font-bold text-white ring-4 ring-white">
+              <div className="absolute -left-6 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-teal-700 text-[10px] font-bold text-white ring-4 ring-white shadow-2xs">
                 {idx + 1}
               </div>
 
-              {/* Itinerary Card */}
-              <div className="rounded-xl border border-slate-200 bg-[#FAF7F2]/40 p-4 transition hover:border-teal-400 hover:bg-white hover:shadow-xs">
+              {/* Itinerary Card with Drag and Drop */}
+              <div
+                draggable={!isLocked}
+                onDragStart={(e) => {
+                  if (isLocked) return;
+                  e.dataTransfer.setData('text/plain', String(idx));
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedIndex(idx);
+                }}
+                onDragOver={(e) => {
+                  if (isLocked) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverIndex !== idx) setDragOverIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverIndex === idx) setDragOverIndex(null);
+                }}
+                onDrop={(e) => {
+                  if (isLocked) return;
+                  e.preventDefault();
+                  const from = draggedIndex ?? Number(e.dataTransfer.getData('text/plain'));
+                  moveItem(from, idx);
+                  setDraggedIndex(null);
+                  setDragOverIndex(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null);
+                  setDragOverIndex(null);
+                }}
+                className={`rounded-xl border p-4 transition-all duration-150 ${
+                  isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                } ${
+                  dragOverIndex === idx
+                    ? 'border-teal-500 bg-teal-50/80 scale-[1.01] shadow-md ring-2 ring-teal-500/30'
+                    : draggedIndex === idx
+                    ? 'opacity-40 border-dashed border-teal-400 bg-slate-50'
+                    : 'border-slate-200 bg-[#FAF7F2]/40 hover:border-teal-400 hover:bg-white hover:shadow-xs'
+                }`}
+              >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-teal-800 px-2.5 py-0.5 text-xs font-bold text-white">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isLocked && (
+                      <div
+                        className="flex items-center gap-0.5 rounded bg-slate-100/80 px-1.5 py-0.5 text-slate-500 hover:text-slate-800"
+                        title="Drag stop up or down"
+                      >
+                        <GripVertical className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="text-[10px] font-bold uppercase select-none">
+                          Stop {idx + 1}
+                        </span>
+                      </div>
+                    )}
+
+                    <span className="inline-flex items-center gap-1 rounded-md bg-teal-800 px-2.5 py-0.5 text-xs font-bold text-white shadow-2xs">
                       <Clock className="h-3 w-3" />
                       {item.timeSlot}
                     </span>
@@ -318,6 +349,35 @@ export function PlanningViews({
                     <span className="text-slate-500">
                       {item.activity.durationMinutes} mins
                     </span>
+
+                    {!isLocked && (
+                      <div className="flex items-center gap-0.5 ml-1 border-l border-slate-200 pl-1.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveItem(idx, idx - 1);
+                          }}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-20"
+                          title="Move stop earlier"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === itinerary.length - 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveItem(idx, idx + 1);
+                          }}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-20"
+                          title="Move stop later"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -450,7 +510,7 @@ export function PlanningViews({
           })}
         </div>
 
-        {/* Lock Plan Action */}
+        {/* Lock Plan Action & PNG Export */}
         <div className="mt-5 flex flex-col items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-4 sm:flex-row">
           <div>
             <h4 className="text-xs font-bold text-teal-950">
@@ -459,31 +519,45 @@ export function PlanningViews({
             <p className="text-[11px] text-teal-800">
               {isLocked
                 ? 'All mates have confirmed! Calendar invites and itinerary notifications generated.'
-                : `${voteCount} mates have approved. Once finalized, lock the plan to export itinerary.`}
+                : `${voteCount} mates have approved. Lock the plan to automatically export the itinerary as a PNG.`}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsLocked(!isLocked)}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition shadow-xs ${
-              isLocked
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                : 'bg-teal-800 text-white hover:bg-teal-900'
-            }`}
-          >
-            {isLocked ? (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Plan Confirmed (Click to Unlock)
-              </>
-            ) : (
-              <>
-                <Lock className="h-3.5 w-3.5" />
-                Lock & Finalize Plan
-              </>
+          <div className="flex items-center gap-2">
+            {isLocked && (
+              <button
+                type="button"
+                onClick={handleExportPng}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 rounded-xl border border-teal-600 bg-white px-3.5 py-2 text-xs font-bold text-teal-800 shadow-2xs hover:bg-teal-50 transition active:scale-[0.99]"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {isExporting ? 'Exporting...' : 'Export PNG'}
+              </button>
             )}
-          </button>
+
+            <button
+              type="button"
+              onClick={handleToggleLock}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition shadow-xs ${
+                isLocked
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-teal-800 text-white hover:bg-teal-900'
+              }`}
+            >
+              {isLocked ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Plan Confirmed (Click to Unlock)
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3.5 w-3.5" />
+                  Lock & Export Itinerary PNG
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
