@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   MapPin,
@@ -12,6 +12,9 @@ import {
   Sparkles,
   Bookmark,
   Trash2,
+  ExternalLink,
+  AlertTriangle,
+  Radio,
 } from 'lucide-react';
 import { Activity } from '@/types';
 import { ACTIVITY_CATEGORIES, MOCK_ACTIVITIES } from '@/lib/mockData';
@@ -36,48 +39,71 @@ export function ActivityDiscovery({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [budgetFilter, setBudgetFilter] = useState<number | 'all'>('all');
   const [sortBy, setSortBy] = useState<'recommended' | 'price-low' | 'rating'>('recommended');
+  
+  const [activities, setActivities] = useState<Activity[]>(MOCK_ACTIVITIES);
+  const [isLiveOpenSerp, setIsLiveOpenSerp] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Fetch activities from Next.js OpenSERP discovery route
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadActivities() {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        if (selectedCategory !== 'all') params.set('category', selectedCategory);
+
+        const res = await fetch(`/api/discovery?${params.toString()}`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (data.activities && data.activities.length > 0) {
+            setActivities(data.activities);
+            setIsLiveOpenSerp(Boolean(data.isLive));
+          }
+        }
+      } catch {
+        // Fallback to local
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    const timer = setTimeout(() => {
+      loadActivities();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, selectedCategory]);
 
   const shortlistedIds = useMemo(
     () => new Set(shortlist.map((a) => a.id)),
     [shortlist]
   );
 
-  // Filter activities
+  // Filter activities by budget and sort
   const filteredActivities = useMemo(() => {
-    return MOCK_ACTIVITIES.filter((act) => {
-      // Category filter
-      if (selectedCategory !== 'all' && act.category !== selectedCategory) {
-        return false;
-      }
-
-      // Budget filter
-      if (budgetFilter !== 'all' && act.estimatedCostPerPerson > budgetFilter) {
-        return false;
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesName = act.name.toLowerCase().includes(q);
-        const matchesDesc = act.description.toLowerCase().includes(q);
-        const matchesNeigh = act.neighborhood.toLowerCase().includes(q);
-        const matchesTags = act.tags.some((t) => t.toLowerCase().includes(q));
-        if (!matchesName && !matchesDesc && !matchesNeigh && !matchesTags) {
+    return activities
+      .filter((act) => {
+        if (budgetFilter !== 'all' && act.estimatedCostPerPerson > budgetFilter) {
           return false;
         }
-      }
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === 'price-low') {
-        return a.estimatedCostPerPerson - b.estimatedCostPerPerson;
-      }
-      if (sortBy === 'rating') {
-        return b.rating - a.rating;
-      }
-      return 0; // default order
-    });
-  }, [searchQuery, selectedCategory, budgetFilter, sortBy]);
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'price-low') {
+          return a.estimatedCostPerPerson - b.estimatedCostPerPerson;
+        }
+        if (sortBy === 'rating') {
+          return b.rating - a.rating;
+        }
+        return 0;
+      });
+  }, [activities, budgetFilter, sortBy]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -96,23 +122,33 @@ export function ActivityDiscovery({
       {/* Discovery Section Header */}
       <div className="flex flex-col gap-2 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">
-              Austin Activity Discovery
+              Austin Activity & Venue Discovery
             </h2>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
-              Simulated OpenSerp Demo
-            </span>
+            {isLiveOpenSerp ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
+                <Radio className="h-3 w-3 text-emerald-600 animate-pulse" />
+                OpenSERP Live (127.0.0.1:7000)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
+                <Info className="h-3 w-3 text-amber-600" />
+                OpenSERP Fallback Mode (Demo Catalog)
+              </span>
+            )}
           </div>
           <p className="mt-0.5 text-xs text-slate-500">
-            Browse authentic Austin venues and activities. Select any spot to add it to your group shortlist.
+            {isLiveOpenSerp
+              ? 'Results dynamically retrieved via local OpenSERP scraper.'
+              : 'OpenSERP server is not active on port 7000. Serving verified Austin venues with source uncertainty indicators.'}
           </p>
         </div>
 
-        {/* Demo Notice Disclaimer */}
-        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-[11px] font-medium text-amber-900">
-          <Info className="h-4 w-4 shrink-0 text-amber-600" />
-          <span>Demo dataset curated for Austin, TX. Demonstrating search UI without live API calls.</span>
+        {/* Demo Notice Disclaimer with Uncertainty Context */}
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-[#FAF7F2] px-3 py-1.5 text-[11px] font-medium text-slate-700">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+          <span>Organic SERP prices are estimates. Confirm hours and reservations via source links.</span>
         </div>
       </div>
 
@@ -162,7 +198,7 @@ export function ActivityDiscovery({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search Austin spots (e.g. brisket, arcade, lake, jazz)..."
+              placeholder="Search Austin venues (e.g. brisket, arcade, lake, jazz)..."
               className="w-full rounded-xl border border-slate-200 bg-[#FAF7F2]/60 py-2 pl-9 pr-3.5 text-xs text-slate-800 placeholder-slate-400 transition focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
@@ -217,10 +253,9 @@ export function ActivityDiscovery({
                 : 'border border-slate-200 bg-[#FAF7F2]/60 text-slate-700 hover:border-slate-300'
             }`}
           >
-            All Categories ({MOCK_ACTIVITIES.length})
+            All Categories
           </button>
           {ACTIVITY_CATEGORIES.map((cat) => {
-            const count = MOCK_ACTIVITIES.filter((a) => a.category === cat.id).length;
             const isSelected = selectedCategory === cat.id;
             return (
               <button
@@ -235,7 +270,6 @@ export function ActivityDiscovery({
               >
                 <span>{cat.emoji}</span>
                 <span>{cat.label}</span>
-                <span className="text-[10px] opacity-70">({count})</span>
               </button>
             );
           })}
@@ -244,7 +278,11 @@ export function ActivityDiscovery({
 
       {/* Activities Grid */}
       <div className="mt-6">
-        {filteredActivities.length === 0 ? (
+        {isLoading ? (
+          <div className="py-12 text-center text-xs font-semibold text-slate-400">
+            Querying OpenSERP for Austin venues...
+          </div>
+        ) : filteredActivities.length === 0 ? (
           <EmptyState
             title="No activities matched your search"
             message="Try resetting your category or budget filters to explore all Austin recommendations."
@@ -294,29 +332,32 @@ export function ActivityDiscovery({
                       {act.description}
                     </p>
 
-                    {/* Highlights */}
-                    <div className="mt-2.5 flex flex-wrap gap-1">
-                      {act.highlights.slice(0, 2).map((h) => (
-                        <span
-                          key={h}
-                          className="rounded-md bg-[#FAF7F2] border border-slate-200/80 px-1.5 py-0.5 text-[10px] text-slate-600"
-                        >
-                          {h}
-                        </span>
-                      ))}
-                    </div>
+                    {/* Uncertainties Callout */}
+                    {act.uncertainties && act.uncertainties.length > 0 && (
+                      <div className="mt-2.5 rounded-lg border border-amber-200/80 bg-amber-50/50 p-2 text-[10px] text-amber-900">
+                        <div className="flex items-center gap-1 font-bold">
+                          <AlertTriangle className="h-3 w-3 text-amber-600" />
+                          <span>Uncertainty Notice:</span>
+                        </div>
+                        <ul className="mt-0.5 list-disc list-inside space-y-0.5 opacity-90">
+                          {act.uncertainties.map((u, i) => (
+                            <li key={i}>{u}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Card Footer: Cost, Duration, Shortlist CTA */}
+                  {/* Card Footer: Cost, Duration, Shortlist CTA, Source URL */}
                   <div className="mt-4 border-t border-slate-100 pt-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-black text-slate-900">
-                            {act.estimatedCostPerPerson === 0 ? 'FREE' : `$${act.estimatedCostPerPerson}`}
+                            {act.estimatedCostPerPerson === 0 ? 'FREE' : `~$${act.estimatedCostPerPerson}`}
                           </span>
                           {act.estimatedCostPerPerson > 0 && (
-                            <span className="text-[10px] text-slate-400">/ person</span>
+                            <span className="text-[10px] text-slate-400">/ person (est.)</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1 text-[10px] text-slate-400">
@@ -325,27 +366,41 @@ export function ActivityDiscovery({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onToggleShortlist(act)}
-                        className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition shadow-2xs ${
-                          isShortlisted
-                            ? 'bg-teal-700 text-white hover:bg-teal-800'
-                            : 'border border-slate-300 bg-white text-slate-700 hover:border-teal-600 hover:text-teal-800 hover:bg-teal-50/50'
-                        }`}
-                      >
-                        {isShortlisted ? (
-                          <>
-                            <Check className="h-3.5 w-3.5 text-teal-200" />
-                            Shortlisted
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-3.5 w-3.5" />
-                            Shortlist
-                          </>
+                      <div className="flex items-center gap-1.5">
+                        {act.sourceUrl && (
+                          <a
+                            href={act.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open venue website"
+                            className="rounded-xl border border-slate-200 bg-[#FAF7F2] p-1.5 text-slate-600 hover:border-teal-500 hover:text-teal-800 transition"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
                         )}
-                      </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onToggleShortlist(act)}
+                          className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition shadow-2xs ${
+                            isShortlisted
+                              ? 'bg-teal-700 text-white hover:bg-teal-800'
+                              : 'border border-slate-300 bg-white text-slate-700 hover:border-teal-600 hover:text-teal-800 hover:bg-teal-50/50'
+                          }`}
+                        >
+                          {isShortlisted ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-teal-200" />
+                              Shortlisted
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-3.5 w-3.5" />
+                              Shortlist
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {isOverBudget && (

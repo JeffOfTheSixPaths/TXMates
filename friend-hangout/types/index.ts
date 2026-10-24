@@ -25,6 +25,9 @@ export interface Activity {
   bestFor: string;
   tags: string[];
   imageUrl?: string;
+  sourceUrl?: string;
+  isLiveResult?: boolean;
+  uncertainties?: string[];
 }
 
 export interface TimeSlot {
