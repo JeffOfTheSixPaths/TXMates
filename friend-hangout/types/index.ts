@@ -88,6 +88,10 @@ export interface HangoutPlan {
     financialHealthScore: number; // 1 - 10
     budgetTip: string;
   };
+  isLiveAiGenerated?: boolean;
+  aiModelUsed?: string;
+  aiIcebreaker?: string;
+  aiCoordinationTip?: string;
 }
 
 export interface VoteRecord {

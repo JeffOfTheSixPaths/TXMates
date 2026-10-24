@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   Award,
   Zap,
+  MessageSquare,
+  Lightbulb,
 } from 'lucide-react';
 import { HangoutPlan, PlanningViewType, Friend } from '@/types';
 
@@ -163,9 +165,16 @@ export function PlanningViews({
               <h3 className="text-base font-bold text-slate-900">
                 {currentPlan.title}
               </h3>
-              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
-                Meta Muse Spark AI
-              </span>
+              {currentPlan.isLiveAiGenerated ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  Meta Muse Spark Live ({currentPlan.aiModelUsed || 'muse-spark-1.3'})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
+                  Meta Muse Spark AI (Simulated)
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-slate-600">
               {currentPlan.subtitle}
@@ -173,6 +182,34 @@ export function PlanningViews({
             <p className="mt-2 text-xs leading-relaxed text-slate-700 italic border-l-2 border-purple-400 pl-2.5">
               “{currentPlan.aiRationale}”
             </p>
+
+            {/* Live Muse Spark Highlights (Icebreaker & Coordination) */}
+            {(currentPlan.aiIcebreaker || currentPlan.aiCoordinationTip) && (
+              <div className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {currentPlan.aiIcebreaker && (
+                  <div className="rounded-xl border border-purple-100 bg-white/90 p-3 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-purple-700 font-semibold text-xs mb-1">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      <span>Squad Icebreaker (Muse Spark)</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug">
+                      {currentPlan.aiIcebreaker}
+                    </p>
+                  </div>
+                )}
+                {currentPlan.aiCoordinationTip && (
+                  <div className="rounded-xl border border-sky-100 bg-white/90 p-3 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-sky-700 font-semibold text-xs mb-1">
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      <span>Group Flow Tip (Muse Spark)</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug">
+                      {currentPlan.aiCoordinationTip}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

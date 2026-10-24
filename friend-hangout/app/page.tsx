@@ -38,6 +38,22 @@ export default function Home() {
   const [shortlist, setShortlist] = useState<Activity[]>([]);
   const [activeTab, setActiveTab] = useState<'planner' | 'discovery'>('planner');
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
+  const [liveAiData, setLiveAiData] = useState<
+    Record<
+      PlanningViewType,
+      {
+        aiRationale: string;
+        aiIcebreaker?: string;
+        aiCoordinationTip?: string;
+        isLive: boolean;
+        model: string;
+      } | null
+    >
+  >({
+    overall: null,
+    cheapest: null,
+    interests: null,
+  });
 
   // Sync to SQL on preference changes
   useEffect(() => {
@@ -108,22 +124,113 @@ export default function Home() {
     return () => clearInterval(pollInterval);
   }, [preferences.id, preferences.friends]);
 
-  // Compute current plan deterministically
-  const currentPlan = useMemo(() => {
-    return generatePlan(preferences, activeView);
-  }, [preferences, activeView]);
+  // Fetch live Meta Muse Spark AI synthesis
+  const fetchLiveMusePlan = async (view: PlanningViewType) => {
+    try {
+      const basePlan = generatePlan(preferences, view);
+      const res = await fetch('/api/muse/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferences,
+          viewType: view,
+          activities: basePlan.activities,
+        }),
+      });
 
-  // Handle plan regeneration with brief animation
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isLive) {
+          setLiveAiData((prev) => ({
+            ...prev,
+            [view]: {
+              aiRationale: data.aiRationale,
+              aiIcebreaker: data.aiIcebreaker,
+              aiCoordinationTip: data.aiCoordinationTip,
+              isLive: true,
+              model: data.model || 'muse-spark-1.3',
+            },
+          }));
+        }
+      }
+    } catch {
+      // Deterministic fallback remains active
+    }
+  };
+
+  // Initial live Meta Muse synthesis on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function initLivePlan() {
+      try {
+        const basePlan = generatePlan(preferences, 'overall');
+        const res = await fetch('/api/muse/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            preferences,
+            viewType: 'overall',
+            activities: basePlan.activities,
+          }),
+        });
+
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (data.isLive) {
+            setLiveAiData((prev) => ({
+              ...prev,
+              overall: {
+                aiRationale: data.aiRationale,
+                aiIcebreaker: data.aiIcebreaker,
+                aiCoordinationTip: data.aiCoordinationTip,
+                isLive: true,
+                model: data.model || 'muse-spark-1.3',
+              },
+            }));
+          }
+        }
+      } catch {
+        // Fallback remains active
+      }
+    }
+
+    initLivePlan();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Compute current plan deterministically, augmented with live Meta Muse Spark AI synthesis
+  const currentPlan = useMemo(() => {
+    const base = generatePlan(preferences, activeView);
+    const live = liveAiData[activeView];
+    if (live && live.isLive) {
+      return {
+        ...base,
+        aiRationale: live.aiRationale || base.aiRationale,
+        isLiveAiGenerated: true,
+        aiModelUsed: live.model,
+        aiIcebreaker: live.aiIcebreaker,
+        aiCoordinationTip: live.aiCoordinationTip,
+      };
+    }
+    return base;
+  }, [preferences, activeView, liveAiData]);
+
+  // Handle plan regeneration with live Meta Muse Spark synthesis
   const handleGenerate = () => {
     setIsGenerating(true);
-    setTimeout(() => {
+    fetchLiveMusePlan(activeView).finally(() => {
       setIsGenerating(false);
       // Smooth scroll to planning views
       const el = document.getElementById('planning-views-section');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, 450);
+    });
   };
 
   // Toggle activity in shortlist
@@ -341,7 +448,12 @@ export default function Home() {
                 <PlanningViews
                   currentPlan={currentPlan}
                   activeView={activeView}
-                  onSelectView={setActiveView}
+                  onSelectView={(newView) => {
+                    setActiveView(newView);
+                    if (!liveAiData[newView]) {
+                      fetchLiveMusePlan(newView);
+                    }
+                  }}
                   friends={preferences.friends}
                   groupName={preferences.groupName}
                 />

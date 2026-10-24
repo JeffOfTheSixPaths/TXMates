@@ -51,10 +51,10 @@ export function Header({ friendCount, location, hasPlan, onReset }: HeaderProps)
 
         {/* Integration Architecture Badges */}
         <div className="hidden items-center gap-2 lg:flex">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs">
+          <div className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50/60 px-2.5 py-1 text-xs font-medium text-slate-800 shadow-xs">
             <Sparkles className="h-3.5 w-3.5 text-purple-600" />
             <span>Meta Muse Spark</span>
-            <span className="rounded bg-purple-50 px-1 text-[10px] text-purple-700">AI Plan</span>
+            <span className="rounded bg-emerald-100 px-1 text-[10px] font-bold text-emerald-800">Live v1.3</span>
           </div>
 
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs">
