@@ -10,11 +10,12 @@ import {
   Share2,
   ChevronRight,
 } from 'lucide-react';
-import { ActivityCategory, Friend, HangoutPreferences } from '@/types';
+import { ActivityCategory, Friend, HangoutPreferences, FriendCalendarSyncDetails } from '@/types';
 import { ACTIVITY_CATEGORIES, INITIAL_FRIENDS } from '@/lib/mockData';
 import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { buildRunnerHours, heatStyle, OverlapRunner } from '@/components/OverlapRunner';
 import { CATEGORY_ICONS } from '@/components/categoryIcons';
+import { GoogleCalendarImporter } from '@/components/GoogleCalendarImporter';
 
 interface AvailPageProps {
   params: Promise<{ id: string }>;
@@ -42,6 +43,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [calendarSynced, setCalendarSynced] = useState<boolean>(false);
+  const [calendarSyncDetails, setCalendarSyncDetails] = useState<FriendCalendarSyncDetails | undefined>(undefined);
 
   // Fetch hangout from SQLite API and initialize friend values
   useEffect(() => {
@@ -63,6 +66,10 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
               }
               if (targetFriend.budgetPreference) {
                 setBudgetPref(targetFriend.budgetPreference);
+              }
+              if (targetFriend.calendarSynced) {
+                setCalendarSynced(true);
+                setCalendarSyncDetails(targetFriend.calendarSyncDetails);
               }
             }
             return;
@@ -102,6 +109,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
     if (f.topInterests && f.topInterests.length > 0) {
       setSelectedInterests(f.topInterests);
     }
+    setCalendarSynced(Boolean(f.calendarSynced));
+    setCalendarSyncDetails(f.calendarSyncDetails);
   };
 
   const runnerHours = useMemo(
@@ -129,6 +138,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
           endTime,
           budgetPreference: budgetPref,
           topInterests: selectedInterests,
+          calendarSynced,
+          calendarSyncDetails,
         }),
       });
 
@@ -246,7 +257,12 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                         <span className={`grid h-8 w-8 shrink-0 place-items-center text-sm font-semibold ${f.avatarColor}`}>
                           {f.name.charAt(0)}
                         </span>
-                        <span className="truncate text-sm font-semibold">{f.name}</span>
+                        <div className="min-w-0">
+                          <span className="truncate block text-sm font-semibold">{f.name}</span>
+                          {f.calendarSynced && (
+                            <span className="block text-[10px] font-semibold text-leaf">GCal Synced</span>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
@@ -267,7 +283,35 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 <legend className="text-lg font-semibold text-ink">
                   When are you free? {hangout?.date || "Selected day"}
                 </legend>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <p className="mt-1 text-sm text-ink-soft">
+                  Sync your Google Calendar to auto-fill your open window, or choose a preset below.
+                </p>
+
+                <div className="mt-3">
+                  <GoogleCalendarImporter
+                    friend={
+                      hangout?.friends.find((f) => f.id === selectedFriendId) || {
+                        id: selectedFriendId,
+                        name: friendName,
+                        avatarColor: 'bg-teal-600 text-white',
+                        availabilitySlots: [{ id: 'slot-curr', startTime, endTime }],
+                        topInterests: selectedInterests,
+                        calendarSynced,
+                        calendarSyncDetails,
+                      }
+                    }
+                    date={hangout?.date || '2026-10-26'}
+                    timePreference={hangout?.timePreference || 'afternoon'}
+                    onSyncComplete={(newStart, newEnd, syncDetails) => {
+                      setStartTime(newStart);
+                      setEndTime(newEnd);
+                      setCalendarSynced(true);
+                      setCalendarSyncDetails(syncDetails);
+                    }}
+                  />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     ["12:00", "17:00", "Afternoon", "12–5"],
                     ["14:30", "20:30", "Late afternoon", "2:30–8:30"],
