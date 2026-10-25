@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { HangoutPreferences, Friend, ActivityCategory } from '@/types';
-import { ensureActivityTables } from './activityStore';
+import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
 import { ensureMuseUsage } from './museUsage';
@@ -49,6 +49,7 @@ export function initHangoutDb(db: DatabaseSync) {
       );
     `);
   ensureActivityTables(db);
+  purgeJunkActivities(db);
   ensureMuseCache(db);
   ensureMuseUsage(db);
   ensureItineraryLockColumns(db);

@@ -20,7 +20,8 @@ import {
   enrichmentContentCacheable,
   parseMuseEnrichments,
 } from './museEnrich';
-import { openSerpEngines, openSerpTimeoutMs } from './serviceTimeouts';
+import { discoveryHitRejection } from './activityPolicy';
+import { openSerpEngineOrder, openSerpTimeoutMs } from './serviceTimeouts';
 
 const CATEGORIES = new Set(['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill']);
 
@@ -60,17 +61,81 @@ const inflight = new Map<string, Promise<void>>();
 
 const GENERIC_SEARCH = 'best things to do with friends venues activities';
 
+const POPULAR_CITIES = [
+  'dallas',
+  'boston',
+  'san antonio',
+  'houston',
+  'chicago',
+  'new york',
+  'nyc',
+  'austin',
+  'seattle',
+  'denver',
+  'miami',
+  'atlanta',
+  'los angeles',
+  'san francisco',
+  'orlando',
+];
+
+const CITY_ACRONYMS = new Set(['nyc', 'dfw', 'la']);
+
+export function formatCityLabel(city: string): string {
+  const trimmed = city.trim();
+  const key = trimmed.toLowerCase();
+  if (CITY_ACRONYMS.has(key)) return key.toUpperCase();
+  return trimmed
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+export function normalizeLocationLabel(location: string): string {
+  const [cityPart, ...rest] = location.split(',');
+  const city = formatCityLabel(cityPart || '');
+  const region = rest
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => (/^[a-z]{2}$/i.test(part) ? part.toUpperCase() : formatCityLabel(part)));
+  return [city, ...region].filter(Boolean).join(', ');
+}
+
+export function resolveDiscoveryLocation(rawQ: string, locationParam: string): { location: string; query: string } {
+  let location = locationParam;
+  let cleanQ = rawQ;
+  for (const city of POPULAR_CITIES) {
+    const named = new RegExp(`\\b${escapeRegex(city)}\\b`, 'i');
+    if (!named.test(rawQ)) continue;
+    location = formatCityLabel(city);
+    cleanQ = rawQ.replace(new RegExp(`\\b${escapeRegex(city)}\\s*(,\\s*[a-z]{2})?\\b`, 'gi'), ' ');
+    break;
+  }
+  cleanQ = cleanQ
+    .replace(/\s+(in|near|around)\s*$/i, ' ')
+    .replace(/^(in|near|around)\s+/i, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return { location: normalizeLocationLabel(location || 'Austin, TX'), query: cleanQ };
+}
+
 export function buildSearchText(location: string, category: string, query: string): string {
   const place = location.trim();
-  const term = query.trim();
+  const term = query.trim().replace(/\s+(in|near|around)$/i, '').trim();
   const focusedCategory = category !== 'all' && category.trim() ? category.trim() : '';
   if (term) {
     const parts = [term];
-    if (focusedCategory) parts.push(focusedCategory);
-    if (place) parts.push('in', place);
+    if (focusedCategory && !term.toLowerCase().includes(focusedCategory.toLowerCase())) parts.push(focusedCategory);
+    const placeCity = place.split(',')[0]?.trim().toLowerCase() || '';
+    if (place && placeCity && !term.toLowerCase().includes(placeCity)) parts.push('in', place);
     return parts.join(' ');
   }
   return [place, focusedCategory || GENERIC_SEARCH].filter(Boolean).join(' ');
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function openSerpBaseUrl(raw = process.env.OPENSERP_URL): string {
@@ -87,8 +152,11 @@ export async function refreshDiscoveryQuery(
   const query = input.query.trim();
   const searchText = buildSearchText(location, category, query);
   const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
-  const cityLabel = cleanCity.charAt(0).toUpperCase() + cleanCity.slice(1);
-  const hits = await fetchOpenSerp(searchText, input.fetchImpl);
+  const cityLabel = formatCityLabel(cleanCity);
+  const hits = await fetchOpenSerp(searchText, input.fetchImpl, {
+    location,
+    query: searchText,
+  });
   if (!hits) return { ok: false, ids: [] };
 
   const ids: string[] = [];
@@ -98,6 +166,17 @@ export async function refreshDiscoveryQuery(
     const url = hit.url || '';
     if (!title || !url || url.includes('google.com/search')) continue;
     if (isSponsoredTitle(rawTitle) || isSponsoredTitle(title)) continue;
+    if (
+      discoveryHitRejection({
+        title,
+        snippet: hit.snippet || '',
+        url,
+        location,
+        query: searchText,
+      })
+    ) {
+      continue;
+    }
     const combined = `${title} ${hit.snippet || ''}`;
     const inferred = inferCategory(combined);
     const finalCategory = asCategory(category !== 'all' ? category : inferred.category);
@@ -171,7 +250,11 @@ export async function recheckPlace(
   if (!place || place.kind !== 'place') return 'skipped';
   const now = input.now ?? new Date();
   const text = `"${place.name}" ${input.location || 'Austin, TX'}`;
-  const hits = await fetchOpenSerp(text, input.fetchImpl);
+  const hits = await fetchOpenSerp(text, input.fetchImpl, {
+    location: input.location || 'Austin, TX',
+    query: place.name,
+    requireQueryMatch: false,
+  });
   if (!hits) return 'skipped';
   return applyRecheck(
     db,
@@ -181,13 +264,20 @@ export async function recheckPlace(
   );
 }
 
-export async function enrichStoredActivities(db: DatabaseSync, ids: string[], fetchImpl?: typeof fetch) {
+export async function enrichStoredActivities(
+  db: DatabaseSync,
+  ids: string[],
+  fetchImpl?: typeof fetch,
+  options?: { maxNew?: number; includeExtras?: boolean }
+) {
+  const maxNew = options?.maxNew ?? ENRICH_BATCH;
+  const includeExtras = options?.includeExtras !== false;
   const pending = ids.filter((id) => {
     const row = getActivityRow(db, id);
     return row && !row.enriched_at;
   });
-  const extra = listUnenrichedIds(db, ENRICH_BATCH).filter((id) => !pending.includes(id));
-  const batch = [...pending, ...extra].slice(0, ENRICH_BATCH);
+  const extra = includeExtras ? listUnenrichedIds(db, maxNew).filter((id) => !pending.includes(id)) : [];
+  const batch = [...pending, ...extra].slice(0, maxNew);
   if (batch.length === 0) return;
   const listings = batch
     .map((id) => getActivityRow(db, id))
@@ -227,11 +317,50 @@ export async function enrichStoredActivities(db: DatabaseSync, ids: string[], fe
   }
 }
 
-async function fetchOpenSerp(searchText: string, fetchImpl: typeof fetch = fetch): Promise<OpenSerpHit[] | null> {
+async function fetchOpenSerp(
+  searchText: string,
+  fetchImpl: typeof fetch = fetch,
+  context: { location: string; query: string; requireQueryMatch?: boolean } = {
+    location: 'Austin, TX',
+    query: searchText,
+  }
+): Promise<OpenSerpHit[] | null> {
+  const engines = openSerpEngineOrder();
+  let sawResponse = false;
+  for (const engine of engines) {
+    const hits = await fetchOpenSerpEngine(engine, searchText, fetchImpl);
+    if (!hits) continue;
+    sawResponse = true;
+    const accepted = hits.filter((hit) => {
+      const title = cleanTitle(hit.title || '');
+      if (!title || !(hit.url || '') || isSponsoredTitle(hit.title || '') || isSponsoredTitle(title)) return false;
+      return (
+        discoveryHitRejection({
+          title,
+          snippet: hit.snippet || '',
+          url: hit.url || '',
+          location: context.location,
+          query: context.query,
+          requireQueryMatch: context.requireQueryMatch,
+        }) === null
+      );
+    });
+    if (accepted.length > 0) {
+      return accepted.map((hit) => ({ ...hit, engine: hit.engine || engine }));
+    }
+  }
+  return sawResponse ? [] : null;
+}
+
+async function fetchOpenSerpEngine(
+  engine: string,
+  searchText: string,
+  fetchImpl: typeof fetch
+): Promise<OpenSerpHit[] | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openSerpTimeoutMs());
   try {
-    const url = `${openSerpBaseUrl()}/mega/search?engines=${encodeURIComponent(openSerpEngines())}&text=${encodeURIComponent(searchText)}&limit=12&mode=any`;
+    const url = `${openSerpBaseUrl()}/mega/search?engines=${encodeURIComponent(engine)}&text=${encodeURIComponent(searchText)}&limit=12`;
     const response = await fetchImpl(url, {
       signal: controller.signal,
       headers: { Accept: 'application/json' },

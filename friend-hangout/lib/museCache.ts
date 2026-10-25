@@ -61,6 +61,30 @@ export function ensureMuseCache(db: DatabaseSync) {
   `);
 }
 
+export function stablePlanCacheKey(input: {
+  hangoutId?: string | null;
+  city: string;
+  windowStart: string;
+  windowEnd: string;
+  budgetTier: number;
+  interests: string[];
+  candidateIds: string[];
+  viewType: string;
+}): string {
+  const normalized = {
+    v: 'plan-stable-v1',
+    hangoutId: (input.hangoutId || '').trim(),
+    city: input.city.trim().toLowerCase().replace(/\s+/g, ' '),
+    windowStart: input.windowStart,
+    windowEnd: input.windowEnd,
+    budgetTier: input.budgetTier,
+    interests: [...input.interests].map((item) => item.toLowerCase()).sort(),
+    candidateIds: [...new Set(input.candidateIds.filter(Boolean))].sort(),
+    viewType: input.viewType,
+  };
+  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
 export function musePlanCacheKey(input: MuseCacheInput): string {
   const friends = [...(input.preferences.friends || [])]
     .map((friend) => ({

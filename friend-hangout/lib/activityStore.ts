@@ -5,7 +5,7 @@ import type { Classification } from './activityClassify';
 import type { MuseEnrichment } from './museEnrich';
 import { civilDate } from './activityClassify';
 import { searchCatalog } from './catalogSearch';
-import { daysAgoIso, type ActivityPolicy } from './activityPolicy';
+import { daysAgoIso, discoveryHitRejection, type ActivityPolicy } from './activityPolicy';
 
 export type ActivityDraft = {
   name: string;
@@ -306,6 +306,50 @@ export function isSponsoredTitle(title: string): boolean {
   return /\sAd$/i.test(title.trim());
 }
 
+export function savedActivityIsJunk(row: {
+  name: string;
+  url: string;
+  description?: string | null;
+  neighborhood?: string | null;
+  location?: string | null;
+  source_query?: string | null;
+}): boolean {
+  const requested = (row.location || row.source_query || 'Austin, TX').trim();
+  return (
+    discoveryHitRejection({
+      title: row.name,
+      snippet: `${row.description || ''} ${row.neighborhood || ''}`,
+      url: row.url,
+      location: requested,
+      query: row.source_query || '',
+      requireQueryMatch: false,
+    }) !== null
+  );
+}
+
+export function purgeJunkActivities(db: DatabaseSync): number {
+  ensureActivityTables(db);
+  const rows = db
+    .prepare(`SELECT id, name, url, description, neighborhood, location, source_query FROM activities`)
+    .all() as Array<{
+    id: string;
+    name: string;
+    url: string;
+    description: string | null;
+    neighborhood: string | null;
+    location: string | null;
+    source_query: string | null;
+  }>;
+  const remove = db.prepare(`DELETE FROM activities WHERE id = ?`);
+  let removed = 0;
+  for (const row of rows) {
+    if (!savedActivityIsJunk(row)) continue;
+    remove.run(row.id);
+    removed += 1;
+  }
+  return removed;
+}
+
 export function purgeSponsoredActivities(db: DatabaseSync): number {
   ensureActivityTables(db);
   const rows = db.prepare(`SELECT id, name FROM activities`).all() as Array<{ id: string; name: string }>;
@@ -325,6 +369,7 @@ export function cleanupActivities(
   policy: Pick<ActivityPolicy, 'eventTtlDays' | 'placeStaleDays'>
 ): { deletedEvents: number; removedPlaces: number } {
   ensureActivityTables(db);
+  purgeJunkActivities(db);
   purgeSponsoredActivities(db);
   const today = civilDate(now);
   const eventCutoff = daysAgoIso(now, policy.eventTtlDays);

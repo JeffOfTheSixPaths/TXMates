@@ -21,7 +21,16 @@ const DEFAULT_BASE_URL = 'https://api.nessieisreal.com';
 export function nessieBaseUrl(): string {
   return (process.env.NESSIE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '');
 }
-const REQUEST_TIMEOUT_MS = 8000;
+
+/** Merchants probe used by /api/nessie/check. Always built from nessieBaseUrl(), which defaults to https. */
+export function nessieCheckUrl(key: string): string {
+  const url = new URL(`${nessieBaseUrl()}/merchants`);
+  url.searchParams.set('key', key);
+  return url.toString();
+}
+
+export const NESSIE_REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = NESSIE_REQUEST_TIMEOUT_MS;
 
 type LoadedCustomer = {
   customers: NessieCustomerOption[];
