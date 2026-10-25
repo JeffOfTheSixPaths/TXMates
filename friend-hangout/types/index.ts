@@ -112,6 +112,17 @@ export interface HangoutPreferences {
   friends: Friend[];
 }
 
+export interface HangoutSummary {
+  id: string;
+  groupName: string;
+  location: string;
+  date: string;
+  selectedDates: string[];
+  friendCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DateOverlapSummary {
   date: string;
   formattedDate: string;

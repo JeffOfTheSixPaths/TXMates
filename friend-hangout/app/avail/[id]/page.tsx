@@ -17,6 +17,7 @@ import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { buildRunnerHours, heatStyle, OverlapRunner } from '@/components/OverlapRunner';
 import { CATEGORY_ICONS } from '@/components/categoryIcons';
 import { GoogleCalendarImporter } from '@/components/GoogleCalendarImporter';
+import { When2MeetGrid } from '@/components/When2MeetGrid';
 import { compareCandidateDates, formatFriendlyDate } from '@/lib/planner';
 
 interface AvailPageProps {
@@ -285,7 +286,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <Link
-            href="/"
+            href={hangoutId === "txmates-demo" ? "/" : `/h/${hangoutId}`}
             className="inline-flex min-h-11 items-center gap-1.5 border border-seam bg-sheet px-3 text-base font-semibold text-ink"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -535,6 +536,31 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                   </label>
                 </div>
               </fieldset>
+
+              <div className="border-t border-seam pt-6">
+                <When2MeetGrid
+                  dates={candidateDatesList}
+                  friends={hangout?.friends || INITIAL_FRIENDS}
+                  currentUserId={selectedFriendId}
+                  userSlots={[
+                    {
+                      id: `slot-${selectedFriendId}`,
+                      startTime,
+                      endTime,
+                      date: activeDate,
+                    },
+                  ]}
+                  editable={true}
+                  onSlotsChange={(newSlots) => {
+                    const currentActiveSlot = newSlots.find((s) => s.date === activeDate);
+                    if (currentActiveSlot) {
+                      setStartTime(currentActiveSlot.startTime);
+                      setEndTime(currentActiveSlot.endTime);
+                    }
+                  }}
+                  title="When2Meet Availability Schedule"
+                />
+              </div>
 
               <div className="border-t border-seam pt-6">
                 <h2 className="text-lg font-semibold text-ink">Group overlap</h2>

@@ -102,6 +102,33 @@ export function formatFriendlyDate(isoDate: string): string {
   });
 }
 
+export function getDateRange(startIso: string, endIso: string): string[] {
+  if (!startIso || !endIso) return startIso ? [startIso] : [];
+  const [startY, startM, startD] = startIso.split('-').map(Number);
+  const [endY, endM, endD] = endIso.split('-').map(Number);
+
+  let startDate = new Date(startY, (startM || 1) - 1, startD || 1);
+  let endDate = new Date(endY, (endM || 1) - 1, endD || 1);
+
+  if (startDate > endDate) {
+    const temp = startDate;
+    startDate = endDate;
+    endDate = temp;
+  }
+
+  const dates: string[] = [];
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, '0');
+    const d = String(current.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export function compareCandidateDates(
   friends: Friend[],
   dates: string[]

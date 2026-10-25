@@ -1,7 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { HangoutPreferences, Friend, ActivityCategory, FriendCalendarSyncDetails, TimeSlot } from '@/types';
+import type {
+  HangoutPreferences,
+  HangoutSummary,
+  Friend,
+  ActivityCategory,
+  FriendCalendarSyncDetails,
+  TimeSlot,
+} from '@/types';
 import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
@@ -210,57 +217,58 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
   return id;
 }
 
-export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
-  const db = getDb();
-
+export function getHangoutFromDb(hangoutId: string, db: DatabaseSync = getDb()): HangoutPreferences | null {
   const getHangout = db.prepare(`SELECT * FROM hangouts WHERE id = ?`);
   let row = getHangout.get(hangoutId) as HangoutRow | undefined;
 
   if (!row) {
-    saveHangoutToDb({
-      id: hangoutId,
-      groupName: 'Group Name Here',
-      location: 'Austin, TX',
-      date: '2026-10-26',
-      timePreference: 'afternoon',
-      maxBudgetPerPerson: 50,
-      selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
-      friendCount: 4,
-      friends: [
-        {
-          id: 'f-1',
-          name: 'Marcus W. (Organizer)',
-          avatarColor: 'bg-teal-600 text-white',
-          availabilitySlots: [{ id: 's-1', startTime: '13:00', endTime: '21:00' }],
-          budgetPreference: 35,
-          topInterests: ['food', 'music', 'gaming'],
-        },
-        {
-          id: 'f-2',
-          name: 'Priya R.',
-          avatarColor: 'bg-purple-600 text-white',
-          availabilitySlots: [{ id: 's-2', startTime: '14:30', endTime: '20:30' }],
-          budgetPreference: 50,
-          topInterests: ['arts', 'chill', 'food'],
-        },
-        {
-          id: 'f-3',
-          name: 'Tyler N.',
-          avatarColor: 'bg-amber-600 text-white',
-          availabilitySlots: [{ id: 's-3', startTime: '15:00', endTime: '22:00' }],
-          budgetPreference: 15,
-          topInterests: ['gaming', 'sports', 'nightlife'],
-        },
-        {
-          id: 'f-4',
-          name: 'Elena M.',
-          avatarColor: 'bg-emerald-600 text-white',
-          availabilitySlots: [{ id: 's-4', startTime: '14:00', endTime: '21:30' }],
-          budgetPreference: 20,
-          topInterests: ['outdoors', 'chill', 'music'],
-        },
-      ],
-    });
+    saveHangoutToDb(
+      {
+        id: hangoutId,
+        groupName: hangoutId === 'txmates-demo' ? 'Austin Weekend Crew' : `Group ${hangoutId}`,
+        location: 'Austin, TX',
+        date: '2026-10-26',
+        timePreference: 'afternoon',
+        maxBudgetPerPerson: 50,
+        selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
+        friendCount: 4,
+        friends: [
+          {
+            id: 'f-1',
+            name: 'Marcus W. (Organizer)',
+            avatarColor: 'bg-teal-600 text-white',
+            availabilitySlots: [{ id: 's-1', startTime: '13:00', endTime: '21:00' }],
+            budgetPreference: 35,
+            topInterests: ['food', 'music', 'gaming'],
+          },
+          {
+            id: 'f-2',
+            name: 'Priya R.',
+            avatarColor: 'bg-purple-600 text-white',
+            availabilitySlots: [{ id: 's-2', startTime: '14:30', endTime: '20:30' }],
+            budgetPreference: 50,
+            topInterests: ['arts', 'chill', 'food'],
+          },
+          {
+            id: 'f-3',
+            name: 'Tyler N.',
+            avatarColor: 'bg-amber-600 text-white',
+            availabilitySlots: [{ id: 's-3', startTime: '15:00', endTime: '22:00' }],
+            budgetPreference: 15,
+            topInterests: ['gaming', 'sports', 'nightlife'],
+          },
+          {
+            id: 'f-4',
+            name: 'Elena M.',
+            avatarColor: 'bg-emerald-600 text-white',
+            availabilitySlots: [{ id: 's-4', startTime: '14:00', endTime: '21:30' }],
+            budgetPreference: 20,
+            topInterests: ['outdoors', 'chill', 'music'],
+          },
+        ],
+      },
+      db
+    );
     row = getHangout.get(hangoutId) as HangoutRow | undefined;
   }
 
@@ -461,3 +469,110 @@ export function updateFriendSubmission(
 
   return true;
 }
+
+export function listHangoutsFromDb(db: DatabaseSync = getDb()): HangoutSummary[] {
+  ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
+  // Ensure default hangout exists
+  getHangoutFromDb('txmates-demo', db);
+
+  const stmt = db.prepare(`
+    SELECT h.id, h.group_name, h.location, h.date, h.selected_dates, h.created_at, h.updated_at,
+           COUNT(f.id) as friend_count
+    FROM hangouts h
+    LEFT JOIN friend_availabilities f ON f.hangout_id = h.id
+    GROUP BY h.id
+    ORDER BY h.updated_at DESC, h.created_at DESC
+  `);
+  const rows = stmt.all() as Array<{
+    id: string;
+    group_name: string;
+    location: string;
+    date: string;
+    selected_dates: string | null;
+    created_at: string;
+    updated_at: string;
+    friend_count: number;
+  }>;
+
+  return rows.map((r) => {
+    let selectedDates: string[] = [r.date];
+    if (r.selected_dates) {
+      try {
+        selectedDates = JSON.parse(r.selected_dates);
+      } catch {
+        selectedDates = [r.date];
+      }
+    }
+    return {
+      id: r.id,
+      groupName: r.group_name,
+      location: r.location,
+      date: r.date,
+      selectedDates,
+      friendCount: Number(r.friend_count) || 0,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  });
+}
+
+export function createNewHangout(
+  options: { groupName?: string; location?: string; id?: string } = {},
+  db: DatabaseSync = getDb()
+): HangoutPreferences {
+  const customId = options.id?.trim() || `hangout-${Math.random().toString(36).substring(2, 9)}`;
+  const groupName = options.groupName?.trim() || 'New Hangout Group';
+  const location = options.location?.trim() || 'Austin, TX';
+  const today = '2026-10-26';
+
+  const newHangout: HangoutPreferences = {
+    id: customId,
+    groupName,
+    location,
+    date: today,
+    selectedDates: [today],
+    timePreference: 'afternoon',
+    maxBudgetPerPerson: 40,
+    selectedInterests: ['food', 'music', 'outdoors', 'chill'],
+    friendCount: 4,
+    friends: [
+      {
+        id: 'f-1',
+        name: 'Organizer',
+        avatarColor: 'bg-teal-600 text-white',
+        availabilitySlots: [{ id: 's-1', startTime: '12:00', endTime: '20:00' }],
+        budgetPreference: 30,
+        topInterests: ['food', 'chill'],
+      },
+      {
+        id: 'f-2',
+        name: 'Friend 1',
+        avatarColor: 'bg-purple-600 text-white',
+        availabilitySlots: [{ id: 's-2', startTime: '13:00', endTime: '19:00' }],
+        budgetPreference: 40,
+        topInterests: ['food', 'music'],
+      },
+      {
+        id: 'f-3',
+        name: 'Friend 2',
+        avatarColor: 'bg-amber-600 text-white',
+        availabilitySlots: [{ id: 's-3', startTime: '14:00', endTime: '21:00' }],
+        budgetPreference: 25,
+        topInterests: ['outdoors', 'chill'],
+      },
+      {
+        id: 'f-4',
+        name: 'Friend 3',
+        avatarColor: 'bg-emerald-600 text-white',
+        availabilitySlots: [{ id: 's-4', startTime: '12:30', endTime: '18:30' }],
+        budgetPreference: 35,
+        topInterests: ['music', 'food'],
+      },
+    ],
+  };
+
+  saveHangoutToDb(newHangout, db);
+  return newHangout;
+}
+

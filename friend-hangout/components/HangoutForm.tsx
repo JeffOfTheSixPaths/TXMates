@@ -20,7 +20,6 @@ import {
   Plus,
   Share2,
   Sparkles,
-  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -30,39 +29,19 @@ import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { heatStyle } from './OverlapRunner';
 import { calculateAvailabilityOverlap, compareCandidateDates, formatFriendlyDate } from '@/lib/planner';
 import { CATEGORY_ICONS } from './categoryIcons';
-
-function getNextDayFrom(baseIso: string, dayOffset: number): string {
-  const [y, m, d] = baseIso.split('-').map(Number);
-  const date = y && m && d ? new Date(y, m - 1, d) : new Date();
-  date.setDate(date.getDate() + dayOffset);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getNextWeekdayFrom(baseIso: string, targetDay: number): string {
-  const [y, m, d] = baseIso.split('-').map(Number);
-  const date = y && m && d ? new Date(y, m - 1, d) : new Date();
-  const currentDay = date.getDay();
-  let diff = targetDay - currentDay;
-  if (diff <= 0) diff += 7;
-  date.setDate(date.getDate() + diff);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { DragCalendar } from './DragCalendar';
+import { When2MeetGrid } from './When2MeetGrid';
 
 interface HangoutFormProps {
   preferences: HangoutPreferences;
   onChange: (updated: HangoutPreferences) => void;
   onGenerate: () => void;
   isGenerating: boolean;
-  nessie: NessieBudgetResponse | null;
-  nessieLoading: boolean;
-  onSelectCustomer: (customerId: string) => void;
-  onSelectAccount: (accountId: string) => void;
+  nessie?: NessieBudgetResponse | null;
+  nessieBudget?: NessieBudgetResponse | null;
+  nessieLoading?: boolean;
+  onSelectCustomer?: (customerId: string) => void;
+  onSelectAccount?: (accountId: string) => void;
   squadAdvisory?: SquadPricePointResponse | null;
   squadAdvisoryLoading?: boolean;
   onApplySquadPricePoint?: (target: number) => void;
@@ -89,7 +68,6 @@ export function HangoutForm({
   const [batchSyncLoading, setBatchSyncLoading] = useState(false);
   const [syncAllNotice, setSyncAllNotice] = useState<string | null>(null);
   const [singleSyncLoadingId, setSingleSyncLoadingId] = useState<string | null>(null);
-  const [newDateInput, setNewDateInput] = useState('');
 
   const selectedDatesList = useMemo(() => {
     const list =
@@ -117,35 +95,11 @@ export function HangoutForm({
     });
   };
 
-  const handleAddCustomDate = () => {
-    if (!newDateInput) return;
-    if (!selectedDatesList.includes(newDateInput)) {
-      const updated = [...selectedDatesList, newDateInput].sort();
-      onChange({
-        ...preferences,
-        selectedDates: updated,
-      });
-    }
-    setNewDateInput('');
-  };
-
-  const handleAddShortcutDate = (targetDate: string) => {
-    if (!selectedDatesList.includes(targetDate)) {
-      const updated = [...selectedDatesList, targetDate].sort();
-      onChange({
-        ...preferences,
-        selectedDates: updated,
-      });
-    }
-  };
-
-  const handleRemoveDate = (dateToRemove: string) => {
-    if (selectedDatesList.length <= 1) return;
-    const updated = selectedDatesList.filter((d) => d !== dateToRemove);
-    const nextDate = preferences.date === dateToRemove ? updated[0] : preferences.date;
+  const handleDatesChange = (newDates: string[]) => {
+    const nextDate = newDates.includes(preferences.date) ? preferences.date : newDates[0] || preferences.date;
     onChange({
       ...preferences,
-      selectedDates: updated,
+      selectedDates: newDates,
       date: nextDate,
     });
   };
@@ -465,142 +419,33 @@ export function HangoutForm({
           </div>
         </div>
 
+        {/* Drag to choose multiple dates */}
         <div className="mt-6 border border-seam bg-pine p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <span className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Calendar className="h-4 w-4" aria-hidden />
-              Candidate Dates ({candidateDates.length})
+              Choose Dates ({candidateDates.length})
             </span>
             <span className="text-xs text-ink-soft">
               Active plan: <strong className="text-ink">{formatFriendlyDate(preferences.date)}</strong>
             </span>
           </div>
-          <p className="mt-1 text-xs text-ink-soft">
-            Compare dates and see which one has the highest friend availability. Switch between dates anytime.
-          </p>
 
-          {/* Candidate date cards */}
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-            {candidateDates.map((cd) => {
-              const isActive = cd.date === preferences.date;
-              return (
-                <div
-                  key={cd.date}
-                  className={`relative flex flex-col justify-between border p-2.5 transition-all ${
-                    isActive
-                      ? "border-ink bg-sheet shadow-sm ring-1 ring-ink"
-                      : "border-seam bg-sheet/60 hover:border-ink/50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSetActiveDate(cd.date)}
-                      className="flex-1 text-left"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-bold text-ink">
-                          {cd.formattedDate}
-                        </span>
-                        {cd.isBest && candidateDates.length > 1 && (
-                          <span className="inline-flex items-center gap-0.5 bg-sun px-1.5 py-0.5 text-[10px] font-bold text-ink">
-                            <Star className="h-2.5 w-2.5 fill-current" />
-                            Best
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-xs text-ink-soft">
-                        {cd.availableCount}/{cd.totalFriends} free
-                        {cd.overlapHours > 0 ? ` · ${cd.commonStart}–${cd.commonEnd}` : " · no overlap"}
-                      </div>
-                    </button>
-                    {candidateDates.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDate(cd.date)}
-                        title={`Remove ${cd.formattedDate}`}
-                        aria-label={`Remove date ${cd.formattedDate}`}
-                        className="p-1 text-ink-soft hover:text-tomato"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+          <DragCalendar
+            selectedDates={selectedDatesList}
+            activeDate={preferences.date}
+            onDatesChange={handleDatesChange}
+            onActiveDateSelect={handleSetActiveDate}
+          />
+        </div>
 
-                  <div className="mt-2 flex items-center justify-between border-t border-seam/40 pt-1.5">
-                    {isActive ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-leaf">
-                        <Check className="h-3.5 w-3.5" />
-                        Active plan date
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSetActiveDate(cd.date)}
-                        className="text-xs font-medium text-ink-soft underline hover:text-ink"
-                      >
-                        Select this date
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Add candidate date controls */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-seam/60 pt-3">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={newDateInput}
-                onChange={(e) => setNewDateInput(e.target.value)}
-                aria-label="New candidate date"
-                className="border border-seam bg-sheet px-2 py-1 text-sm text-ink focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddCustomDate}
-                disabled={!newDateInput}
-                className="inline-flex items-center gap-1 border border-seam bg-sheet px-2.5 py-1 text-xs font-semibold text-ink hover:bg-pine disabled:opacity-40"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add date
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
-              <span>Quick add:</span>
-              <button
-                type="button"
-                onClick={() => handleAddShortcutDate(getNextDayFrom(preferences.date, 1))}
-                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
-              >
-                + Next Day
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 5))}
-                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
-              >
-                + This Fri
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 6))}
-                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
-              >
-                + This Sat
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 0))}
-                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
-              >
-                + This Sun
-              </button>
-            </div>
-          </div>
+        {/* When2Meet scheduling matrix */}
+        <div className="mt-6">
+          <When2MeetGrid
+            dates={candidateDates.map((c) => c.date)}
+            friends={preferences.friends}
+            title="When2Meet Squad Availability Grid"
+          />
         </div>
 
         <div className="mt-4">
@@ -1084,12 +929,12 @@ function NessieBudgetNote({
   onSelectCustomer,
   onSelectAccount,
 }: {
-  nessie: NessieBudgetResponse | null;
-  nessieLoading: boolean;
+  nessie?: NessieBudgetResponse | null;
+  nessieLoading?: boolean;
   currentBudget: number;
   onUseSuggestion: () => void;
-  onSelectCustomer: (customerId: string) => void;
-  onSelectAccount: (accountId: string) => void;
+  onSelectCustomer?: (customerId: string) => void;
+  onSelectAccount?: (accountId: string) => void;
 }) {
   const suggested = nessie?.estimate.suggestedPerPerson;
   const showUse =
@@ -1132,7 +977,7 @@ function NessieBudgetNote({
           Nessie customer
           <select
             value={nessie.selectedCustomerId ?? ''}
-            onChange={(event) => onSelectCustomer(event.target.value)}
+            onChange={(event) => onSelectCustomer?.(event.target.value)}
             className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-normal text-ink"
           >
             {nessie.customers.map((customer) => (
@@ -1148,7 +993,7 @@ function NessieBudgetNote({
           Nessie account
           <select
             value={nessie.selectedAccountId ?? 'all'}
-            onChange={(event) => onSelectAccount(event.target.value === 'all' ? '' : event.target.value)}
+            onChange={(event) => onSelectAccount?.(event.target.value === 'all' ? '' : event.target.value)}
             className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-normal text-ink"
           >
             <option value="all">All accounts</option>
