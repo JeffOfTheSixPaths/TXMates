@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveHangoutToDb, getHangoutFromDb, getDb } from '@/lib/db';
+import { saveHangoutToDb, getHangoutFromDb, getDb, listHangoutsFromDb, createNewHangout } from '@/lib/db';
 import { parseItinerarySnapshot, readItineraryLock, writeItineraryLock } from '@/lib/itineraryLock';
 import { HangoutPreferences } from '@/types';
 
@@ -12,7 +12,17 @@ function hangoutId(value: unknown): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const data = (await req.json()) as HangoutPreferences;
+    const body = await req.json();
+    if (body && typeof body === 'object' && body.action === 'create') {
+      const created = createNewHangout({
+        groupName: typeof body.groupName === 'string' ? body.groupName : undefined,
+        location: typeof body.location === 'string' ? body.location : undefined,
+        id: typeof body.id === 'string' ? body.id : undefined,
+      });
+      return NextResponse.json({ success: true, id: created.id, hangout: created });
+    }
+
+    const data = body as HangoutPreferences;
     const id = saveHangoutToDb(data);
     return NextResponse.json({ success: true, id });
   } catch (err: unknown) {
@@ -27,6 +37,11 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    if (searchParams.get('list') === 'true') {
+      const hangouts = listHangoutsFromDb();
+      return NextResponse.json({ hangouts });
+    }
+
     const id = searchParams.get('id') || 'txmates-demo';
     const hangout = getHangoutFromDb(id);
     if (!hangout) {

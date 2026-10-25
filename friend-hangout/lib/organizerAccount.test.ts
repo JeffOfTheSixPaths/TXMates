@@ -15,6 +15,14 @@ describe('parseInviteInput', () => {
     assert.deepEqual(parseInviteInput('  weekend-crew  '), { id: 'weekend-crew' });
   });
 
+  it('reads a group workspace link', () => {
+    assert.deepEqual(parseInviteInput('https://example.com/h/weekend-crew'), {
+      id: 'weekend-crew',
+      kind: 'group',
+    });
+    assert.deepEqual(parseInviteInput('/h/weekend-crew/'), { id: 'weekend-crew', kind: 'group' });
+  });
+
   it('rejects an empty or unrelated value', () => {
     assert.equal(parseInviteInput(''), null);
     assert.equal(parseInviteInput('not a link'), null);

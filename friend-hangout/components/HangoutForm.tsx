@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { NessieBudgetResponse } from '@/lib/nessieBudget';
 import type { SquadPricePointResponse } from '@/types';
 import { NessieSquadPriceAdvisor } from './NessieSquadPriceAdvisor';
@@ -27,18 +27,21 @@ import { ActivityCategory, Friend, HangoutPreferences } from '@/types';
 import { ACTIVITY_CATEGORIES, AUSTIN_NEIGHBORHOODS } from '@/lib/mockData';
 import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { heatStyle } from './OverlapRunner';
-import { calculateAvailabilityOverlap } from '@/lib/planner';
+import { calculateAvailabilityOverlap, compareCandidateDates, formatFriendlyDate } from '@/lib/planner';
 import { CATEGORY_ICONS } from './categoryIcons';
+import { DragCalendar } from './DragCalendar';
+import { When2MeetGrid } from './When2MeetGrid';
 
 interface HangoutFormProps {
   preferences: HangoutPreferences;
   onChange: (updated: HangoutPreferences) => void;
   onGenerate: () => void;
   isGenerating: boolean;
-  nessie: NessieBudgetResponse | null;
-  nessieLoading: boolean;
-  onSelectCustomer: (customerId: string) => void;
-  onSelectAccount: (accountId: string) => void;
+  nessie?: NessieBudgetResponse | null;
+  nessieBudget?: NessieBudgetResponse | null;
+  nessieLoading?: boolean;
+  onSelectCustomer?: (customerId: string) => void;
+  onSelectAccount?: (accountId: string) => void;
   squadAdvisory?: SquadPricePointResponse | null;
   squadAdvisoryLoading?: boolean;
   onApplySquadPricePoint?: (target: number) => void;
@@ -66,7 +69,42 @@ export function HangoutForm({
   const [syncAllNotice, setSyncAllNotice] = useState<string | null>(null);
   const [singleSyncLoadingId, setSingleSyncLoadingId] = useState<string | null>(null);
 
-  const overlap = calculateAvailabilityOverlap(preferences.friends);
+  const selectedDatesList = useMemo(() => {
+    const list =
+      preferences.selectedDates && preferences.selectedDates.length > 0
+        ? preferences.selectedDates
+        : [preferences.date];
+    if (!list.includes(preferences.date)) {
+      return [preferences.date, ...list];
+    }
+    return list;
+  }, [preferences.selectedDates, preferences.date]);
+
+  const candidateDates = useMemo(
+    () => compareCandidateDates(preferences.friends, selectedDatesList),
+    [preferences.friends, selectedDatesList]
+  );
+
+  const handleSetActiveDate = (newDate: string) => {
+    onChange({
+      ...preferences,
+      date: newDate,
+      selectedDates: selectedDatesList.includes(newDate)
+        ? selectedDatesList
+        : [...selectedDatesList, newDate],
+    });
+  };
+
+  const handleDatesChange = (newDates: string[]) => {
+    const nextDate = newDates.includes(preferences.date) ? preferences.date : newDates[0] || preferences.date;
+    onChange({
+      ...preferences,
+      selectedDates: newDates,
+      date: nextDate,
+    });
+  };
+
+  const overlap = calculateAvailabilityOverlap(preferences.friends, preferences.date);
   const hangoutId = preferences.id || 'txmates-demo';
 
   const handleBatchSyncGoogleCalendars = async () => {
@@ -140,10 +178,15 @@ export function HangoutForm({
           },
           availabilitySlots: [
             {
-              id: f.availabilitySlots[0]?.id || `slot-${f.id}`,
+              id:
+                f.availabilitySlots.find((s) => s.date === preferences.date)?.id ||
+                f.availabilitySlots[0]?.id ||
+                `slot-${f.id}`,
               startTime: data.suggestedStartTime,
               endTime: data.suggestedEndTime,
+              date: preferences.date,
             },
+            ...f.availabilitySlots.filter((s) => s.date && s.date !== preferences.date),
           ],
         };
       });
@@ -376,25 +419,42 @@ export function HangoutForm({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="block text-base font-semibold text-ink">
-            <span className="inline-flex items-center gap-1.5">
+        {/* Drag to choose multiple dates */}
+        <div className="mt-6 border border-seam bg-pine p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Calendar className="h-4 w-4" aria-hidden />
-              Date
+              Choose Dates ({candidateDates.length})
             </span>
-            <input
-              type="date"
-              value={preferences.date}
-              onChange={(e) => onChange({ ...preferences, date: e.target.value })}
-              className={`mt-1 ${fieldClass}`}
-            />
-          </label>
+            <span className="text-xs text-ink-soft">
+              Active plan: <strong className="text-ink">{formatFriendlyDate(preferences.date)}</strong>
+            </span>
+          </div>
+
+          <DragCalendar
+            selectedDates={selectedDatesList}
+            activeDate={preferences.date}
+            onDatesChange={handleDatesChange}
+            onActiveDateSelect={handleSetActiveDate}
+          />
+        </div>
+
+        {/* When2Meet scheduling matrix */}
+        <div className="mt-6">
+          <When2MeetGrid
+            dates={candidateDates.map((c) => c.date)}
+            friends={preferences.friends}
+            title="When2Meet Squad Availability Grid"
+          />
+        </div>
+
+        <div className="mt-4">
           <fieldset>
             <legend className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Clock className="h-4 w-4" aria-hidden />
-              Time of day
+              Time of day for {formatFriendlyDate(preferences.date)}
             </legend>
-            <div className="mt-1 grid grid-cols-2 gap-2">
+            <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(
                 [
                   { id: "afternoon", label: "Afternoon", sub: "12–5", start: "12:00", end: "17:00" },
@@ -403,7 +463,7 @@ export function HangoutForm({
                   { id: "all-day", label: "All day", sub: "Flexible", start: "11:00", end: "22:00" },
                 ] as const
               ).map((t) => {
-                const coverage = coverageCount(preferences.friends, t.start, t.end);
+                const coverage = coverageCount(preferences.friends, t.start, t.end, preferences.date);
                 const selected = preferences.timePreference === t.id;
                 return (
                   <button
@@ -869,12 +929,12 @@ function NessieBudgetNote({
   onSelectCustomer,
   onSelectAccount,
 }: {
-  nessie: NessieBudgetResponse | null;
-  nessieLoading: boolean;
+  nessie?: NessieBudgetResponse | null;
+  nessieLoading?: boolean;
   currentBudget: number;
   onUseSuggestion: () => void;
-  onSelectCustomer: (customerId: string) => void;
-  onSelectAccount: (accountId: string) => void;
+  onSelectCustomer?: (customerId: string) => void;
+  onSelectAccount?: (accountId: string) => void;
 }) {
   const suggested = nessie?.estimate.suggestedPerPerson;
   const showUse =
@@ -917,7 +977,7 @@ function NessieBudgetNote({
           Nessie customer
           <select
             value={nessie.selectedCustomerId ?? ''}
-            onChange={(event) => onSelectCustomer(event.target.value)}
+            onChange={(event) => onSelectCustomer?.(event.target.value)}
             className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-normal text-ink"
           >
             {nessie.customers.map((customer) => (
@@ -933,7 +993,7 @@ function NessieBudgetNote({
           Nessie account
           <select
             value={nessie.selectedAccountId ?? 'all'}
-            onChange={(event) => onSelectAccount(event.target.value === 'all' ? '' : event.target.value)}
+            onChange={(event) => onSelectAccount?.(event.target.value === 'all' ? '' : event.target.value)}
             className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-normal text-ink"
           >
             <option value="all">All accounts</option>

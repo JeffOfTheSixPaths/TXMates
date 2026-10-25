@@ -1,7 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { HangoutPreferences, Friend, ActivityCategory, FriendCalendarSyncDetails } from '@/types';
+import type {
+  HangoutPreferences,
+  HangoutSummary,
+  Friend,
+  ActivityCategory,
+  FriendCalendarSyncDetails,
+  TimeSlot,
+} from '@/types';
 import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
@@ -28,6 +35,26 @@ export function ensureFriendCalendarColumns(db: DatabaseSync) {
   }
   if (!columns.has('calendar_sync_details')) {
     db.exec(`ALTER TABLE friend_availabilities ADD COLUMN calendar_sync_details TEXT`);
+  }
+}
+
+export function ensureHangoutDateColumns(db: DatabaseSync) {
+  const hangoutCols = new Set(
+    (db.prepare(`PRAGMA table_info(hangouts)`).all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  if (!hangoutCols.has('selected_dates')) {
+    db.exec(`ALTER TABLE hangouts ADD COLUMN selected_dates TEXT`);
+  }
+
+  const friendCols = new Set(
+    (db.prepare(`PRAGMA table_info(friend_availabilities)`).all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  if (!friendCols.has('slots_json')) {
+    db.exec(`ALTER TABLE friend_availabilities ADD COLUMN slots_json TEXT`);
   }
 }
 
@@ -71,6 +98,7 @@ export function initHangoutDb(db: DatabaseSync) {
   ensureMuseUsage(db);
   ensureItineraryLockColumns(db);
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   ensureUserItemVotesTable(db);
 }
 
@@ -87,6 +115,7 @@ interface HangoutRow {
   group_name: string;
   location: string;
   date: string;
+  selected_dates?: string | null;
   time_preference: 'afternoon' | 'evening' | 'all-day' | 'night';
   max_budget: number;
   selected_interests: string;
@@ -102,6 +131,7 @@ interface FriendRow {
   avatar_color: string;
   start_time: string;
   end_time: string;
+  slots_json?: string | null;
   budget_preference: number | null;
   top_interests: string | null;
   status: 'pending' | 'submitted';
@@ -112,15 +142,21 @@ interface FriendRow {
 
 export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = getDb()): string {
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   const id = hangout.id || 'txmates-demo';
+  const selectedDates =
+    hangout.selectedDates && hangout.selectedDates.length > 0
+      ? hangout.selectedDates
+      : [hangout.date];
 
   const upsertHangout = db.prepare(`
-    INSERT INTO hangouts (id, group_name, location, date, time_preference, max_budget, selected_interests, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO hangouts (id, group_name, location, date, selected_dates, time_preference, max_budget, selected_interests, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
       group_name = excluded.group_name,
       location = excluded.location,
       date = excluded.date,
+      selected_dates = excluded.selected_dates,
       time_preference = excluded.time_preference,
       max_budget = excluded.max_budget,
       selected_interests = excluded.selected_interests,
@@ -132,6 +168,7 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
     hangout.groupName,
     hangout.location,
     hangout.date,
+    JSON.stringify(selectedDates),
     hangout.timePreference,
     hangout.maxBudgetPerPerson,
     JSON.stringify(hangout.selectedInterests)
@@ -140,14 +177,15 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
   const upsertFriend = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      start_time, end_time, slots_json, budget_preference, top_interests, status, submitted_at,
       calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = excluded.friend_name,
       start_time = excluded.start_time,
       end_time = excluded.end_time,
+      slots_json = coalesce(excluded.slots_json, friend_availabilities.slots_json),
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
       status = CASE WHEN friend_availabilities.status = 'submitted' THEN 'submitted' ELSE excluded.status END,
@@ -166,6 +204,7 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
       f.avatarColor,
       slot.startTime,
       slot.endTime,
+      f.availabilitySlots && f.availabilitySlots.length > 0 ? JSON.stringify(f.availabilitySlots) : null,
       f.budgetPreference || null,
       f.topInterests ? JSON.stringify(f.topInterests) : null,
       f.status || 'pending',
@@ -178,90 +217,110 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
   return id;
 }
 
-export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
-  const db = getDb();
-
+export function getHangoutFromDb(hangoutId: string, db: DatabaseSync = getDb()): HangoutPreferences | null {
   const getHangout = db.prepare(`SELECT * FROM hangouts WHERE id = ?`);
   let row = getHangout.get(hangoutId) as HangoutRow | undefined;
 
   if (!row) {
-    saveHangoutToDb({
-      id: hangoutId,
-      groupName: 'Group Name Here',
-      location: 'Austin, TX',
-      date: '2026-10-26',
-      timePreference: 'afternoon',
-      maxBudgetPerPerson: 50,
-      selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
-      friendCount: 4,
-      friends: [
-        {
-          id: 'f-1',
-          name: 'Marcus W. (Organizer)',
-          avatarColor: 'bg-teal-600 text-white',
-          availabilitySlots: [{ id: 's-1', startTime: '13:00', endTime: '21:00' }],
-          budgetPreference: 35,
-          topInterests: ['food', 'music', 'gaming'],
-        },
-        {
-          id: 'f-2',
-          name: 'Priya R.',
-          avatarColor: 'bg-purple-600 text-white',
-          availabilitySlots: [{ id: 's-2', startTime: '14:30', endTime: '20:30' }],
-          budgetPreference: 50,
-          topInterests: ['arts', 'chill', 'food'],
-        },
-        {
-          id: 'f-3',
-          name: 'Tyler N.',
-          avatarColor: 'bg-amber-600 text-white',
-          availabilitySlots: [{ id: 's-3', startTime: '15:00', endTime: '22:00' }],
-          budgetPreference: 15,
-          topInterests: ['gaming', 'sports', 'nightlife'],
-        },
-        {
-          id: 'f-4',
-          name: 'Elena M.',
-          avatarColor: 'bg-emerald-600 text-white',
-          availabilitySlots: [{ id: 's-4', startTime: '14:00', endTime: '21:30' }],
-          budgetPreference: 20,
-          topInterests: ['outdoors', 'chill', 'music'],
-        },
-      ],
-    });
+    saveHangoutToDb(
+      {
+        id: hangoutId,
+        groupName: hangoutId === 'txmates-demo' ? 'Austin Weekend Crew' : `Group ${hangoutId}`,
+        location: 'Austin, TX',
+        date: '2026-10-26',
+        timePreference: 'afternoon',
+        maxBudgetPerPerson: 50,
+        selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
+        friendCount: 4,
+        friends: [
+          {
+            id: 'f-1',
+            name: 'Marcus W. (Organizer)',
+            avatarColor: 'bg-teal-600 text-white',
+            availabilitySlots: [{ id: 's-1', startTime: '13:00', endTime: '21:00' }],
+            budgetPreference: 35,
+            topInterests: ['food', 'music', 'gaming'],
+          },
+          {
+            id: 'f-2',
+            name: 'Priya R.',
+            avatarColor: 'bg-purple-600 text-white',
+            availabilitySlots: [{ id: 's-2', startTime: '14:30', endTime: '20:30' }],
+            budgetPreference: 50,
+            topInterests: ['arts', 'chill', 'food'],
+          },
+          {
+            id: 'f-3',
+            name: 'Tyler N.',
+            avatarColor: 'bg-amber-600 text-white',
+            availabilitySlots: [{ id: 's-3', startTime: '15:00', endTime: '22:00' }],
+            budgetPreference: 15,
+            topInterests: ['gaming', 'sports', 'nightlife'],
+          },
+          {
+            id: 'f-4',
+            name: 'Elena M.',
+            avatarColor: 'bg-emerald-600 text-white',
+            availabilitySlots: [{ id: 's-4', startTime: '14:00', endTime: '21:30' }],
+            budgetPreference: 20,
+            topInterests: ['outdoors', 'chill', 'music'],
+          },
+        ],
+      },
+      db
+    );
     row = getHangout.get(hangoutId) as HangoutRow | undefined;
   }
 
   if (!row) return null;
 
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   const getFriends = db.prepare(`SELECT * FROM friend_availabilities WHERE hangout_id = ? ORDER BY created_at ASC`);
   const friendRows = getFriends.all(hangoutId) as unknown as FriendRow[];
 
-  const friends: Friend[] = friendRows.map((fr) => ({
-    id: fr.friend_id,
-    name: fr.friend_name,
-    avatarColor: fr.avatar_color,
-    availabilitySlots: [
-      {
-        id: `slot-${fr.friend_id}`,
-        startTime: fr.start_time,
-        endTime: fr.end_time,
-      },
-    ],
-    budgetPreference: fr.budget_preference || undefined,
-    topInterests: fr.top_interests ? JSON.parse(fr.top_interests) : [],
-    status: fr.status,
-    submittedAt: fr.submitted_at || undefined,
-    calendarSynced: fr.calendar_synced === 1,
-    calendarSyncDetails: fr.calendar_sync_details ? JSON.parse(fr.calendar_sync_details) : undefined,
-  }));
+  const selectedDates: string[] = row.selected_dates
+    ? JSON.parse(row.selected_dates)
+    : [row.date];
+
+  const friends: Friend[] = friendRows.map((fr) => {
+    let availabilitySlots: TimeSlot[] = [];
+    if (fr.slots_json) {
+      try {
+        availabilitySlots = JSON.parse(fr.slots_json);
+      } catch {
+        availabilitySlots = [];
+      }
+    }
+    if (!availabilitySlots || availabilitySlots.length === 0) {
+      availabilitySlots = [
+        {
+          id: `slot-${fr.friend_id}`,
+          startTime: fr.start_time,
+          endTime: fr.end_time,
+        },
+      ];
+    }
+    return {
+      id: fr.friend_id,
+      name: fr.friend_name,
+      avatarColor: fr.avatar_color,
+      availabilitySlots,
+      budgetPreference: fr.budget_preference || undefined,
+      topInterests: fr.top_interests ? JSON.parse(fr.top_interests) : [],
+      status: fr.status,
+      submittedAt: fr.submitted_at || undefined,
+      calendarSynced: fr.calendar_synced === 1,
+      calendarSyncDetails: fr.calendar_sync_details ? JSON.parse(fr.calendar_sync_details) : undefined,
+    };
+  });
 
   return {
     id: row.id,
     groupName: row.group_name,
     location: row.location,
     date: row.date,
+    selectedDates,
     timePreference: row.time_preference,
     maxBudgetPerPerson: row.max_budget,
     selectedInterests: JSON.parse(row.selected_interests) as ActivityCategory[],
@@ -277,6 +336,8 @@ export function updateFriendSubmission(
     friendName?: string;
     startTime: string;
     endTime: string;
+    slots?: TimeSlot[];
+    date?: string;
     budgetPreference?: number;
     topInterests?: ActivityCategory[];
     calendarSynced?: boolean;
@@ -285,6 +346,36 @@ export function updateFriendSubmission(
 ): boolean {
   const db = getDb();
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
+
+  let slotsJson: string | null = null;
+  if (data.slots && data.slots.length > 0) {
+    slotsJson = JSON.stringify(data.slots);
+  } else if (data.date) {
+    const existing = db
+      .prepare('SELECT slots_json, start_time, end_time FROM friend_availabilities WHERE hangout_id = ? AND friend_id = ?')
+      .get(hangoutId, friendId) as { slots_json?: string; start_time?: string; end_time?: string } | undefined;
+    let slots: TimeSlot[] = [];
+    if (existing?.slots_json) {
+      try {
+        slots = JSON.parse(existing.slots_json);
+      } catch {
+        slots = [];
+      }
+    }
+    const idx = slots.findIndex((s) => s.date === data.date);
+    if (idx >= 0) {
+      slots[idx] = { ...slots[idx], startTime: data.startTime, endTime: data.endTime };
+    } else {
+      slots.push({
+        id: `slot-${friendId}-${data.date}`,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+      });
+    }
+    slotsJson = JSON.stringify(slots);
+  }
 
   const checkHangout = db.prepare('SELECT id FROM hangouts WHERE id = ?');
   let hangout = checkHangout.get(hangoutId);
@@ -342,14 +433,15 @@ export function updateFriendSubmission(
   const updateStmt = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      start_time, end_time, slots_json, budget_preference, top_interests, status, submitted_at,
       calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = coalesce(?, friend_availabilities.friend_name),
       start_time = excluded.start_time,
       end_time = excluded.end_time,
+      slots_json = coalesce(excluded.slots_json, friend_availabilities.slots_json),
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
       status = 'submitted',
@@ -366,6 +458,7 @@ export function updateFriendSubmission(
     'bg-teal-600 text-white',
     data.startTime,
     data.endTime,
+    slotsJson,
     data.budgetPreference || null,
     data.topInterests ? JSON.stringify(data.topInterests) : null,
     now,
@@ -376,3 +469,110 @@ export function updateFriendSubmission(
 
   return true;
 }
+
+export function listHangoutsFromDb(db: DatabaseSync = getDb()): HangoutSummary[] {
+  ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
+  // Ensure default hangout exists
+  getHangoutFromDb('txmates-demo', db);
+
+  const stmt = db.prepare(`
+    SELECT h.id, h.group_name, h.location, h.date, h.selected_dates, h.created_at, h.updated_at,
+           COUNT(f.id) as friend_count
+    FROM hangouts h
+    LEFT JOIN friend_availabilities f ON f.hangout_id = h.id
+    GROUP BY h.id
+    ORDER BY h.updated_at DESC, h.created_at DESC
+  `);
+  const rows = stmt.all() as Array<{
+    id: string;
+    group_name: string;
+    location: string;
+    date: string;
+    selected_dates: string | null;
+    created_at: string;
+    updated_at: string;
+    friend_count: number;
+  }>;
+
+  return rows.map((r) => {
+    let selectedDates: string[] = [r.date];
+    if (r.selected_dates) {
+      try {
+        selectedDates = JSON.parse(r.selected_dates);
+      } catch {
+        selectedDates = [r.date];
+      }
+    }
+    return {
+      id: r.id,
+      groupName: r.group_name,
+      location: r.location,
+      date: r.date,
+      selectedDates,
+      friendCount: Number(r.friend_count) || 0,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  });
+}
+
+export function createNewHangout(
+  options: { groupName?: string; location?: string; id?: string } = {},
+  db: DatabaseSync = getDb()
+): HangoutPreferences {
+  const customId = options.id?.trim() || `hangout-${Math.random().toString(36).substring(2, 9)}`;
+  const groupName = options.groupName?.trim() || 'New Hangout Group';
+  const location = options.location?.trim() || 'Austin, TX';
+  const today = '2026-10-26';
+
+  const newHangout: HangoutPreferences = {
+    id: customId,
+    groupName,
+    location,
+    date: today,
+    selectedDates: [today],
+    timePreference: 'afternoon',
+    maxBudgetPerPerson: 40,
+    selectedInterests: ['food', 'music', 'outdoors', 'chill'],
+    friendCount: 4,
+    friends: [
+      {
+        id: 'f-1',
+        name: 'Organizer',
+        avatarColor: 'bg-teal-600 text-white',
+        availabilitySlots: [{ id: 's-1', startTime: '12:00', endTime: '20:00' }],
+        budgetPreference: 30,
+        topInterests: ['food', 'chill'],
+      },
+      {
+        id: 'f-2',
+        name: 'Friend 1',
+        avatarColor: 'bg-purple-600 text-white',
+        availabilitySlots: [{ id: 's-2', startTime: '13:00', endTime: '19:00' }],
+        budgetPreference: 40,
+        topInterests: ['food', 'music'],
+      },
+      {
+        id: 'f-3',
+        name: 'Friend 2',
+        avatarColor: 'bg-amber-600 text-white',
+        availabilitySlots: [{ id: 's-3', startTime: '14:00', endTime: '21:00' }],
+        budgetPreference: 25,
+        topInterests: ['outdoors', 'chill'],
+      },
+      {
+        id: 'f-4',
+        name: 'Friend 3',
+        avatarColor: 'bg-emerald-600 text-white',
+        availabilitySlots: [{ id: 's-4', startTime: '12:30', endTime: '18:30' }],
+        budgetPreference: 35,
+        topInterests: ['music', 'food'],
+      },
+    ],
+  };
+
+  saveHangoutToDb(newHangout, db);
+  return newHangout;
+}
+

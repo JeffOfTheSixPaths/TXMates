@@ -123,10 +123,14 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
     setJoinNotice(null);
     const parsed = parseInviteInput(joinValue);
     if (!parsed) {
-      setJoinError('That does not look like a TXMates invite. Paste a link such as /avail/txmates-demo.');
+      setJoinError('That does not look like a TXMates invite. Paste a link such as /avail/txmates-demo or /h/weekend-crew.');
       return;
     }
     setJoinError(null);
+    if (parsed.kind === 'group') {
+      router.push(parsed.id === 'txmates-demo' ? '/' : `/h/${encodeURIComponent(parsed.id)}`);
+      return;
+    }
     if (parsed.id === hangoutId && !parsed.mate) {
       setJoinNotice("That is this hangout's invite. Copy it for mates, or paste a different one.");
       return;
@@ -258,16 +262,14 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
             className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-leaf"
           />
           <span>
-            <span className="font-semibold">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-ink-soft">
+              Capital One · Nessie budgets
+            </span>
+            <span className="mt-0.5 block font-semibold">
               Import Capital One bank statements to better understand your budget
             </span>
-            <span className="ml-2 inline-block border border-seam px-1.5 py-0.5 align-middle text-xs font-semibold uppercase tracking-wide text-ink-soft">
-              Coming soon
-            </span>
             <span id={statementHintId} className="mt-1 block text-sm text-ink-soft">
-              {importStatements
-                ? 'Placeholder: saved on this device only. Statement import is not built yet, so budgets still come from the Nessie demo data.'
-                : 'Placeholder, not functional yet. Checking this only saves a preference on this device. Nothing is sent to Capital One.'}
+              Use your recent spending to shape a per-person budget that fits.
             </span>
           </span>
         </label>

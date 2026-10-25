@@ -6,6 +6,8 @@ import type {
   ItineraryItem,
   PlanningViewType,
   Friend,
+  DateOverlapSummary,
+  TimeSlot,
 } from '@/types';
 import { getActivitiesForLocation } from './mockData';
 import { isActivityDownvoted } from './userVotes';
@@ -14,7 +16,7 @@ import type { HangoutBudgetEstimate } from './nessieBudget';
 /**
  * Calculates common availability overlap among friends
  */
-export function calculateAvailabilityOverlap(friends: Friend[]): {
+export function calculateAvailabilityOverlap(friends: Friend[], targetDate?: string): {
   commonStart: string;
   commonEnd: string;
   overlapHours: number;
@@ -39,7 +41,18 @@ export function calculateAvailabilityOverlap(friends: Friend[]): {
 
   friends.forEach((friend) => {
     if (friend.availabilitySlots.length > 0) {
-      const slot = friend.availabilitySlots[0];
+      let slot: TimeSlot | undefined;
+      if (targetDate) {
+        slot = friend.availabilitySlots.find((s) => s.date === targetDate);
+        if (!slot) {
+          slot = friend.availabilitySlots.find((s) => !s.date);
+        }
+      } else {
+        slot = friend.availabilitySlots[0];
+      }
+
+      if (!slot) return;
+
       const [startH, startM] = slot.startTime.split(':').map(Number);
       const [endH, endM] = slot.endTime.split(':').map(Number);
 
@@ -73,6 +86,87 @@ export function calculateAvailabilityOverlap(friends: Friend[]): {
     availableFriendCount: validOverlap ? fullyOverlappingFriends : friends.length,
     allFriendsAvailable: validOverlap && fullyOverlappingFriends === friends.length,
   };
+}
+
+export function formatFriendlyDate(isoDate: string): string {
+  const parts = isoDate.split('-').map(Number);
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  if (!year || !month || !day) return isoDate;
+  const d = new Date(year, month - 1, day);
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+export function getDateRange(startIso: string, endIso: string): string[] {
+  if (!startIso || !endIso) return startIso ? [startIso] : [];
+  const [startY, startM, startD] = startIso.split('-').map(Number);
+  const [endY, endM, endD] = endIso.split('-').map(Number);
+
+  let startDate = new Date(startY, (startM || 1) - 1, startD || 1);
+  let endDate = new Date(endY, (endM || 1) - 1, endD || 1);
+
+  if (startDate > endDate) {
+    const temp = startDate;
+    startDate = endDate;
+    endDate = temp;
+  }
+
+  const dates: string[] = [];
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, '0');
+    const d = String(current.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+export function compareCandidateDates(
+  friends: Friend[],
+  dates: string[]
+): DateOverlapSummary[] {
+  if (!dates || dates.length === 0) return [];
+
+  const summaries: DateOverlapSummary[] = dates.map((date) => {
+    const overlap = calculateAvailabilityOverlap(friends, date);
+    return {
+      date,
+      formattedDate: formatFriendlyDate(date),
+      ...overlap,
+      availableCount: overlap.availableFriendCount,
+      totalFriends: friends.length,
+      isBestDate: false,
+      isBest: false,
+    };
+  });
+
+  let bestIdx = 0;
+  for (let i = 1; i < summaries.length; i++) {
+    const curr = summaries[i];
+    const best = summaries[bestIdx];
+    if (
+      curr.availableFriendCount > best.availableFriendCount ||
+      (curr.availableFriendCount === best.availableFriendCount &&
+        curr.overlapHours > best.overlapHours)
+    ) {
+      bestIdx = i;
+    }
+  }
+
+  if (summaries[bestIdx]) {
+    summaries[bestIdx].isBestDate = true;
+    summaries[bestIdx].isBest = true;
+  }
+
+  return summaries;
 }
 
 export interface PlannerVoteOptions {

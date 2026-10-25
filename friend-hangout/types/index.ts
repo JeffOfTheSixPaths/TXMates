@@ -46,6 +46,7 @@ export interface TimeSlot {
   startTime: string; // e.g. "14:00"
   endTime: string;   // e.g. "19:00"
   label?: string;    // e.g. "Afternoon"
+  date?: string;     // e.g. "2026-10-26"
 }
 
 export interface CalendarBusyEvent {
@@ -103,11 +104,37 @@ export interface HangoutPreferences {
   groupName: string;
   friendCount: number;
   location: string;
-  date: string;
+  date: string; // The primary / active planning date
+  selectedDates?: string[]; // Candidate dates chosen by users
   timePreference: 'afternoon' | 'evening' | 'all-day' | 'night';
   maxBudgetPerPerson: number;
   selectedInterests: ActivityCategory[];
   friends: Friend[];
+}
+
+export interface HangoutSummary {
+  id: string;
+  groupName: string;
+  location: string;
+  date: string;
+  selectedDates: string[];
+  friendCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DateOverlapSummary {
+  date: string;
+  formattedDate: string;
+  commonStart: string;
+  commonEnd: string;
+  overlapHours: number;
+  availableFriendCount: number;
+  availableCount?: number;
+  totalFriends?: number;
+  allFriendsAvailable: boolean;
+  isBestDate?: boolean;
+  isBest?: boolean;
 }
 
 export type PlanningViewType = 'overall' | 'cheapest' | 'interests';
