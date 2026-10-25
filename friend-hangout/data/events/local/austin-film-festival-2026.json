@@ -1,0 +1,27 @@
+{
+  "id": "austin-film-festival-2026",
+  "name": "Austin Film Festival",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Downtown Austin",
+  "venue": "Downtown Austin",
+  "address": "",
+  "startDate": "2026-10-29",
+  "endDate": "2026-11-05",
+  "sourceUrl": "https://austinfilmfestival.com/festival-and-conference-aff/festival/",
+  "description": "The Austin Film Festival page lists October 29–November 5, 2026 for the film schedule. A film pass includes feature films, shorts programs, and filmmaker Q&As.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 180,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Film",
+    "Festival"
+  ],
+  "highlights": [
+    "Film screenings",
+    "Filmmaker Q&As"
+  ]
+}

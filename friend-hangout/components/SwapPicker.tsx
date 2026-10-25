@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import type { Activity, ActivityCategory, HangoutPreferences, ItineraryItem } from "@/types";
 import { civilDate } from "@/lib/activityClassify";
-import { formatAge, formatEventSpan } from "@/lib/activityFormat";
+import { formatActivityPrice, formatAge, formatEventSpan } from "@/lib/activityFormat";
 import { filterSwapCandidates } from "@/lib/itineraryEdit";
 import { MOCK_ACTIVITIES, ACTIVITY_CATEGORIES } from "@/lib/mockData";
 import { CATEGORY_ICONS } from "./categoryIcons";
@@ -217,16 +217,18 @@ export function SwapPicker({ preferences, itinerary, index, onPick, onClose }: S
                               ? ` · Saved, last seen ${formatAge(activity.lastSeen) || "earlier"}`
                               : activity.resultFreshness === "live"
                                 ? " · Live"
-                                : activity.isLiveResult
-                                  ? " · Live"
-                                  : " · Demo"}
+                                : activity.resultFreshness === "catalog"
+                                  ? " · Austin calendar"
+                                  : activity.isLiveResult
+                                    ? " · Live"
+                                    : " · Demo"}
                             {activity.museEnriched ? " · Muse" : ""}
                           </span>
                           <span className="mt-1 block text-sm text-ink-soft">
                             {activity.venue || activity.neighborhood}
                             {activity.address ? ` · ${activity.address}` : activity.location ? ` · ${activity.location}` : ""}
                             {" · "}
-                            {activity.estimatedCostPerPerson === 0 ? "Free" : `$${activity.estimatedCostPerPerson} a person`}
+                            {formatActivityPrice(activity, "person")}
                             {" · "}
                             {activity.durationMinutes} min
                           </span>

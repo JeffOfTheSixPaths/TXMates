@@ -1,0 +1,26 @@
+{
+  "id": "austin-celtic-festival-2026",
+  "name": "Austin Celtic Festival",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Pioneer Farms",
+  "venue": "Pioneer Farms",
+  "address": "",
+  "startDate": "2026-11-07",
+  "endDate": "2026-11-08",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the Austin Celtic Festival for November 7–8, 2026 at Pioneer Farms, along with the 2026 Scottish Highland Games World Championships.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 240,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Festival"
+  ],
+  "highlights": [
+    "Pioneer Farms",
+    "Highland Games"
+  ]
+}

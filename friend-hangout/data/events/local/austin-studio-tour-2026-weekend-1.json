@@ -1,0 +1,25 @@
+{
+  "id": "austin-studio-tour-2026-weekend-1",
+  "name": "Austin Studio Tour (weekend one)",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Austin studios",
+  "venue": "Various Austin studios",
+  "address": "",
+  "startDate": "2026-11-14",
+  "endDate": "2026-11-15",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the Austin Studio Tour, with Almost Real Things, on two weekends. This file is the first weekend, November 14–15, 2026. The second weekend is November 21–22.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 180,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Art"
+  ],
+  "highlights": [
+    "Open studios"
+  ]
+}

@@ -1,0 +1,49 @@
+name: Prune past events
+
+on:
+  schedule:
+    # 11:15 UTC is morning in Austin year-round (6:15am CDT or 5:15am CST),
+    # so "today" is already the America/Chicago calendar date.
+    - cron: '15 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prune-events
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: friend-hangout/package-lock.json
+      - name: Install
+        working-directory: friend-hangout
+        run: npm ci
+      - name: Collect upcoming events
+        continue-on-error: true
+        working-directory: friend-hangout
+        env:
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+        run: npm run events:collect
+      - name: Remove events that already ended
+        working-directory: friend-hangout
+        run: npm run events:prune
+      - name: Commit catalog changes
+        run: |
+          git add friend-hangout/data/events
+          if git diff --cached --quiet; then
+            echo "Event catalog is unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update the Austin event calendar"
+          git push

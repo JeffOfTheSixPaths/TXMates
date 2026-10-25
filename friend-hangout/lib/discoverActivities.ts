@@ -18,6 +18,7 @@ import {
   scheduleDiscoveryRefresh,
   scheduleMuseClassification,
 } from './discoverySearch';
+import { catalogActivitiesForSearch } from './eventCatalog';
 import { MOCK_ACTIVITIES } from './mockData';
 import { openSerpTimeoutMs } from './serviceTimeouts';
 
@@ -39,6 +40,7 @@ export type DiscoverInput = {
   fetchImpl?: typeof fetch;
   policy?: ActivityPolicy;
   allowMuse?: boolean;
+  catalogActivities?: Activity[];
 };
 
 export async function discoverActivities(db: DatabaseSync, input: DiscoverInput = {}): Promise<DiscoveryPayload> {
@@ -51,6 +53,9 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
   const allowMuse = input.allowMuse !== false;
 
   cleanupActivities(db, now, policy);
+
+  const catalog = catalogActivitiesForSearch(category, query, now, location, input.catalogActivities);
+  const withCatalog = (activities: Activity[]) => mergeActivities(activities, catalog);
 
   const saved = searchSavedActivities(db, { query, category });
   const cacheKey = discoveryCacheKey(location, category, query);
@@ -66,7 +71,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         relaxed: false,
         notice: null,
         queryUsed,
-        activities: fromThisSearch.map((row) => toActivity(row, 'saved')),
+        activities: withCatalog(fromThisSearch.map((row) => toActivity(row, 'saved'))),
       };
     }
 
@@ -93,7 +98,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
             relaxed: false,
             notice: null,
             queryUsed,
-            activities: liveRows.map((row) => toActivity(row, 'live')),
+            activities: withCatalog(liveRows.map((row) => toActivity(row, 'live'))),
           };
         }
       }
@@ -107,11 +112,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         relaxed: true,
         notice: widerAfterMiss(query),
         queryUsed,
-        activities: saved.rows.map((row) => toActivity(row, 'saved')),
+        activities: withCatalog(saved.rows.map((row) => toActivity(row, 'saved'))),
       };
     }
 
-    return fallbackPayload(category, query, queryUsed);
+    return fallbackPayload(category, query, queryUsed, catalog);
   }
 
   if (saved.rows.length > 0) {
@@ -133,11 +138,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
       relaxed: saved.relaxed,
       notice: savedNotice(saved.relaxed, !fresh, query),
       queryUsed,
-      activities: saved.rows.map((row) => toActivity(row, 'saved')),
+      activities: withCatalog(saved.rows.map((row) => toActivity(row, 'saved'))),
     };
   }
 
-  if (fresh) return fallbackPayload(category, query, queryUsed);
+  if (fresh) return fallbackPayload(category, query, queryUsed, catalog);
 
   const refreshed = await refreshDiscoveryQuery(db, {
     location,
@@ -161,34 +166,56 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         relaxed: again.relaxed,
         notice: again.relaxed ? relaxedNotice(query) : null,
         queryUsed,
-        activities: again.rows.map((row) => toActivity(row, liveIds.has(row.id) ? 'live' : 'saved')),
+        activities: withCatalog(again.rows.map((row) => toActivity(row, liveIds.has(row.id) ? 'live' : 'saved'))),
       };
     }
   }
 
-  return fallbackPayload(category, query, queryUsed);
+  return fallbackPayload(category, query, queryUsed, catalog);
 }
 
-function fallbackPayload(category: string, query: string, queryUsed: string): DiscoveryPayload {
-  const pool = MOCK_ACTIVITIES.filter((activity) => category === 'all' || activity.category === category).map(
-    (activity) => {
-      const classification = classifyListing({ title: activity.name, snippet: activity.description });
-      return {
-        ...activity,
-        isLiveResult: false,
-        kind: classification.kind,
-        startDate: classification.startDate,
-        endDate: classification.endDate,
-        uncertainties: ['Demo catalog item. OpenSERP has not saved a live result for this search yet.'],
-      };
-    }
-  );
+function mergeActivities(activities: Activity[], catalog: Activity[]): Activity[] {
+  if (catalog.length === 0) return activities;
+  const seen = new Set(activities.map((activity) => activity.id));
+  const merged = activities.slice();
+  for (const activity of catalog) {
+    if (seen.has(activity.id)) continue;
+    seen.add(activity.id);
+    merged.push(activity);
+  }
+  return merged;
+}
+
+function fallbackPayload(category: string, query: string, queryUsed: string, catalog: Activity[]): DiscoveryPayload {
+  const pool = [
+    ...catalog,
+    ...MOCK_ACTIVITIES.filter((activity) => category === 'all' || activity.category === category).map(
+      (activity) => {
+        const classification = classifyListing({ title: activity.name, snippet: activity.description });
+        return {
+          ...activity,
+          isLiveResult: false,
+          kind: classification.kind,
+          startDate: classification.startDate,
+          endDate: classification.endDate,
+          uncertainties: ['Demo catalog item. OpenSERP has not saved a live result for this search yet.'],
+        };
+      }
+    ),
+  ];
   const ranked = searchCatalog(pool, query);
   const timeout = openSerpTimeoutMs();
   const base = openSerpBaseUrl();
+  const hasCatalog = ranked.activities.some((activity) => activity.resultFreshness === 'catalog');
+  const onlyCatalog =
+    hasCatalog && ranked.activities.every((activity) => activity.resultFreshness === 'catalog');
   const notice = ranked.relaxed
     ? `Nothing matched "${query}". Showing the wider Austin demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
-    : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated Austin demo catalog.`;
+    : onlyCatalog
+      ? `OpenSERP did not answer at ${base} within ${timeout}ms. Showing upcoming Austin events from the saved calendar.`
+      : hasCatalog
+        ? `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Showing upcoming Austin events and the demo catalog.`
+        : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated Austin demo catalog.`;
   return {
     source: 'fallback',
     isLive: false,

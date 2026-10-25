@@ -24,7 +24,13 @@ OpenSERP rows are deduped by normalized URL plus name. A listing is an event whe
 
 Events are deleted once the end date, or the start date when there is no end, is before today. An event with no parseable date is deleted `ACTIVITY_EVENT_TTL_DAYS` after it was last seen (default 30). Places stay until they have been missing from OpenSERP for `ACTIVITY_PLACE_STALE_DAYS` (default 60). `npm run refresh:activities` also rechecks places that have been quiet for `ACTIVITY_PLACE_RECHECK_DAYS` (default 30, up to `ACTIVITY_RECHECK_LIMIT` per run, default 8). A recheck that comes back with no matching name or URL removes that place. A failed recheck, such as OpenSERP being offline, leaves the row alone.
 
-The refresh script also deletes expired rows and refreshes stale searches. It does not poll all day. Run it from the `friend-hangout` folder when you want a catch-up, or from Windows Task Scheduler. In Task Scheduler, set "Start in" to the `friend-hangout` folder and the action to:
+Upcoming Austin events that ship with the repo live in `data/events/local` (things to do) and `data/events/shows` (concerts, shows, and sports). Each file is one event: a name, `startDate` and `endDate` (`YYYY-MM-DD`), a `sourceUrl`, and the same category ids the planner already uses. Discover merges events whose date still includes today in America/Chicago. An event with no parseable date stays in the folder and stays in search.
+
+`npm run events:prune` deletes a file only when its end date, or its start date when there is no end, is before today in America/Chicago. It prints each removed event and does nothing on a second run. Undated and unreadable files are left alone. The daily GitHub Actions workflow `.github/workflows/prune-events.yml` runs that command and commits the deletion. The workflow can push only when Actions has read and write permission on contents (Settings → Actions → General → Workflow permissions).
+
+`npm run events:collect` adds new Austin listings when `TICKETMASTER_API_KEY` is set (a free Discovery API key from the Ticketmaster developer portal). Without the key it leaves the folder unchanged. The same collect step runs at the end of `npm run refresh:activities`, and the workflow runs it when the repository secret `TICKETMASTER_API_KEY` exists. Collect does not invent events and does not delete ones that have already been saved.
+
+The refresh script also deletes expired OpenSERP rows in `data/txmates.db` and refreshes stale searches. It does not poll all day. Run it from the `friend-hangout` folder when you want a catch-up, or from Windows Task Scheduler. In Task Scheduler, set "Start in" to the `friend-hangout` folder and the action to:
 
 ```powershell
 npm.cmd run refresh:activities

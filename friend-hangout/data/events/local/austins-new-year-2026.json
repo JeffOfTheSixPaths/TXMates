@@ -1,0 +1,27 @@
+{
+  "id": "austins-new-year-2026",
+  "name": "Austin's New Year",
+  "bucket": "local",
+  "category": "music",
+  "categoryLabel": "Live Music",
+  "location": "Austin, TX",
+  "neighborhood": "Auditorium Shores",
+  "venue": "Auditorium Shores",
+  "address": "",
+  "startDate": "2026-12-31",
+  "endDate": "2026-12-31",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists Austin's New Year on December 31, 2026 at Auditorium Shores with the City of Austin. The page describes the evening as free and family-friendly, with live music and fireworks at midnight.",
+  "estimatedCostPerPerson": 0,
+  "durationMinutes": 180,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Free",
+    "Fireworks"
+  ],
+  "highlights": [
+    "Free admission",
+    "Fireworks at midnight"
+  ]
+}

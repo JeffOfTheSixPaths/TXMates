@@ -1,0 +1,27 @@
+{
+  "id": "armadillo-christmas-bazaar-2026",
+  "name": "Armadillo Christmas Bazaar",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Palmer Events Center",
+  "venue": "Palmer Events Center",
+  "address": "900 Barton Springs Rd, Austin, TX 78704",
+  "startDate": "2026-12-12",
+  "endDate": "2026-12-21",
+  "sourceUrl": "https://armadillobazaar.com/",
+  "description": "The Armadillo Christmas Bazaar site lists December 12–21, 2026 at the Palmer Events Center, 900 Barton Springs Rd, Austin, TX 78704, with fine art and live music. Hours vary by day.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 180,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Art",
+    "Live music"
+  ],
+  "highlights": [
+    "Palmer Events Center",
+    "Live music"
+  ]
+}

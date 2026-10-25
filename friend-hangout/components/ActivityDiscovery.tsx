@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Activity, ActivityCategory } from '@/types';
-import { formatAge, formatEventSpan } from '@/lib/activityFormat';
+import { formatActivityPrice, formatAge, formatEventSpan } from '@/lib/activityFormat';
 import { ACTIVITY_CATEGORIES } from '@/lib/mockData';
 import { CATEGORY_ICONS } from './categoryIcons';
 import { EmptyState } from './EmptyState';
@@ -105,13 +105,16 @@ export function ActivityDiscovery({
   const filteredActivities = useMemo(() => {
     return activities
       .filter((act) => {
-        if (budgetFilter !== 'all' && act.estimatedCostPerPerson > budgetFilter) {
+        if (budgetFilter !== 'all' && act.priceListed !== false && act.estimatedCostPerPerson > budgetFilter) {
           return false;
         }
         return true;
       })
       .sort((a, b) => {
         if (sortBy === 'price-low') {
+          const unknownA = a.priceListed === false ? 1 : 0;
+          const unknownB = b.priceListed === false ? 1 : 0;
+          if (unknownA !== unknownB) return unknownA - unknownB;
           return a.estimatedCostPerPerson - b.estimatedCostPerPerson;
         }
         if (sortBy === 'rating') {
@@ -129,8 +132,9 @@ export function ActivityDiscovery({
     setSortBy('recommended');
   };
 
+  const shortlistHasUnlistedPrice = shortlist.some((activity) => activity.priceListed === false);
   const shortlistTotalPerPerson = shortlist.reduce(
-    (sum, a) => sum + a.estimatedCostPerPerson,
+    (sum, activity) => sum + (activity.priceListed === false ? 0 : activity.estimatedCostPerPerson),
     0
   );
 
@@ -170,7 +174,8 @@ export function ActivityDiscovery({
       {shortlist.length > 0 && (
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border border-seam bg-sheet px-4 py-3 text-ink">
           <p className="text-base">
-            <span className="font-semibold tabular-nums">{shortlist.length}</span> shortlisted, about ${shortlistTotalPerPerson} a person.
+            <span className="font-semibold tabular-nums">{shortlist.length}</span> shortlisted, about ${shortlistTotalPerPerson} a person
+            {shortlistHasUnlistedPrice ? ', plus events whose ticket price was not listed' : ''}.
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -286,14 +291,16 @@ export function ActivityDiscovery({
           <ul className="grid grid-cols-1 gap-px bg-seam sm:grid-cols-2 lg:grid-cols-3">
             {filteredActivities.map((act) => {
               const isShortlisted = shortlistedIds.has(act.id);
-              const isOverBudget = act.estimatedCostPerPerson > maxBudget;
+              const isOverBudget = act.priceListed !== false && act.estimatedCostPerPerson > maxBudget;
               const eventWhen = formatEventSpan(act.startDate, act.endDate);
               const freshness =
                 act.resultFreshness === 'live'
                   ? 'Live'
                   : act.resultFreshness === 'saved'
                     ? `Saved, last seen ${formatAge(act.lastSeen) || 'earlier'}`
-                    : 'Demo';
+                    : act.resultFreshness === 'catalog'
+                      ? 'Austin calendar'
+                      : 'Demo';
               const kindLabel =
                 act.kind === 'event'
                   ? `Event${eventWhen ? `, ${eventWhen}` : ', date not listed'}`
@@ -308,9 +315,15 @@ export function ActivityDiscovery({
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-semibold text-ink">{act.categoryLabel}</span>
                     <span className="inline-flex items-center gap-1 tabular-nums text-ink">
-                      <Star className="h-4 w-4 fill-sun text-ink" aria-hidden />
-                      {act.rating}
-                      <span className="text-ink-soft">({act.reviewCount})</span>
+                      {act.reviewCount > 0 ? (
+                        <>
+                          <Star className="h-4 w-4 fill-sun text-ink" aria-hidden />
+                          {act.rating}
+                          <span className="text-ink-soft">({act.reviewCount})</span>
+                        </>
+                      ) : (
+                        <span className="text-ink-soft">No rating saved</span>
+                      )}
                     </span>
                   </div>
                   <h3 className="mt-2 text-xl font-semibold text-ink">{act.name}</h3>
@@ -334,7 +347,7 @@ export function ActivityDiscovery({
                   <div className="mt-4 flex items-end justify-between gap-3 border-t border-seam pt-3">
                     <div>
                       <p className="text-lg font-semibold tabular-nums text-ink">
-                        {act.estimatedCostPerPerson === 0 ? 'Free' : `~$${act.estimatedCostPerPerson}`}
+                        {formatActivityPrice(act)}
                       </p>
                       <p className="inline-flex items-center gap-1 text-sm text-ink-soft">
                         <Clock className="h-4 w-4" aria-hidden />

@@ -1,0 +1,27 @@
+{
+  "id": "texas-vs-arkansas-2026",
+  "name": "Texas Longhorns vs. Arkansas",
+  "bucket": "shows",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Darrell K Royal–Texas Memorial Stadium",
+  "venue": "Darrell K Royal–Texas Memorial Stadium",
+  "address": "",
+  "startDate": "2026-11-21",
+  "endDate": "2026-11-21",
+  "sourceUrl": "https://texaslonghorns.com/sports/football/schedule/2026",
+  "description": "The University of Texas 2026 football schedule lists Arkansas at Darrell K Royal–Texas Memorial Stadium in Austin on Saturday, November 21, 2026, in an afternoon window of 2:30–3:30 p.m. CT.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 210,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Football",
+    "Texas Longhorns"
+  ],
+  "highlights": [
+    "Afternoon window",
+    "Austin"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "austin-fc-vs-portland-timbers-2026",
+  "name": "Austin FC vs. Portland Timbers",
+  "bucket": "shows",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Q2 Stadium",
+  "venue": "Q2 Stadium",
+  "address": "10414 McKalla Pl, Austin, TX 78758",
+  "startDate": "2026-11-07",
+  "endDate": "2026-11-07",
+  "sourceUrl": "https://www.austinfc.com/news/austin-fc-announces-2026-mls-regular-season-schedule-presented-by-yeti",
+  "description": "Austin FC’s 2026 schedule announcement says the regular season ends on Decision Day, November 7, when Austin hosts the Portland Timbers at Q2 Stadium. The match page is https://www.austinfc.com/competitions/mls-regular-season/2026/matches/atxvspor-11-07-2026/. Kickoff was not stated on the announcement page.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Soccer",
+    "Austin FC"
+  ],
+  "highlights": [
+    "Q2 Stadium",
+    "Decision Day"
+  ]
+}

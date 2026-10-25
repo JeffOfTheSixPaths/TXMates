@@ -1,0 +1,25 @@
+{
+  "id": "pga-tour-austin-championship-2026",
+  "name": "PGA Tour Austin Championship",
+  "bucket": "shows",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Omni Barton Creek",
+  "venue": "Omni Barton Creek Resort & Spa",
+  "address": "",
+  "startDate": "2026-11-09",
+  "endDate": "2026-11-15",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the PGA Tour Austin Championship for November 9–15, 2026 at Omni Barton Creek Resort & Spa, a FedExCup Fall event.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 240,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Golf"
+  ],
+  "highlights": [
+    "Omni Barton Creek Resort & Spa"
+  ]
+}

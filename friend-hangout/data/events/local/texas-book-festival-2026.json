@@ -1,0 +1,27 @@
+{
+  "id": "texas-book-festival-2026",
+  "name": "Texas Book Festival",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Downtown Austin",
+  "venue": "Downtown Austin",
+  "address": "",
+  "startDate": "2026-11-14",
+  "endDate": "2026-11-15",
+  "sourceUrl": "https://texasbookfestival.org/",
+  "description": "The Texas Book Festival site lists November 14–15 in downtown Austin and says the festival is free and open to all.",
+  "estimatedCostPerPerson": 0,
+  "durationMinutes": 240,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Books",
+    "Free"
+  ],
+  "highlights": [
+    "Free admission",
+    "Downtown Austin"
+  ]
+}

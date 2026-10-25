@@ -1,0 +1,26 @@
+{
+  "id": "ty-myers-moody-2026",
+  "name": "Ty Myers",
+  "bucket": "shows",
+  "category": "music",
+  "categoryLabel": "Live Music",
+  "location": "Austin, TX",
+  "neighborhood": "Moody Center",
+  "venue": "Moody Center",
+  "address": "2001 Robert Dedman Dr, Austin, TX 78712",
+  "startDate": "2026-11-20",
+  "endDate": "2026-11-20",
+  "sourceUrl": "https://moodycenteratx.com/event/ty-myers/",
+  "description": "Moody Center lists Ty Myers, The Legal Tour, on Friday, November 20, 2026, with Brent Cobb and Benny G. The event page lists the show time as 7:30 p.m. CT.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Moody Center"
+  ],
+  "highlights": [
+    "Moody Center",
+    "7:30 p.m. CT"
+  ]
+}

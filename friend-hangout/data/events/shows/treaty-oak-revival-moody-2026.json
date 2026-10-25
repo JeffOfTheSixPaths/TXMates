@@ -1,0 +1,25 @@
+{
+  "id": "treaty-oak-revival-moody-2026",
+  "name": "Treaty Oak Revival",
+  "bucket": "shows",
+  "category": "music",
+  "categoryLabel": "Live Music",
+  "location": "Austin, TX",
+  "neighborhood": "Moody Center",
+  "venue": "Moody Center",
+  "address": "2001 Robert Dedman Dr, Austin, TX 78712",
+  "startDate": "2026-11-12",
+  "endDate": "2026-11-12",
+  "sourceUrl": "https://moodycenteratx.com/events/",
+  "description": "Moody Center lists Treaty Oak Revival on Thursday, November 12, 2026.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Moody Center"
+  ],
+  "highlights": [
+    "Moody Center"
+  ]
+}
