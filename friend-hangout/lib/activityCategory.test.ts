@@ -69,5 +69,9 @@ describe('activity category from the listing itself', () => {
     assert.equal(isListicleListing('Franklin Barbecue', 'https://www.youtube.com/watch?v=abc'), true);
     assert.equal(isListicleListing('Franklin Barbecue', 'https://franklinbarbecue.com'), false);
     assert.equal(isListicleListing('Topgolf Austin'), false);
+    assert.equal(isListicleListing('Novel Escape | Top-Rated Escape Rooms in Austin, TX'), true);
+    assert.equal(isListicleListing('Top Rated Escape Rooms in Dallas, TX'), true);
+    assert.equal(isListicleListing('Escape Rooms in Austin, TX'), true);
+    assert.equal(isListicleListing('The Escape Game Austin'), false);
   });
 });

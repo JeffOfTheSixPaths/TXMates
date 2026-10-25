@@ -120,7 +120,8 @@ describe('discovery search', () => {
     assert.equal(found.source, 'saved');
     assert.equal(found.relaxed, true);
     assert.match(found.notice || '', /wider saved list/);
-    assert.equal(found.activities[0]?.name, 'Saxon Pub');
+    assert.ok(found.activities.some((activity) => activity.name === 'Saxon Pub'));
+    assert.ok(found.activities.some((activity) => activity.id.startsWith('curated-') && /taco/i.test(activity.name)));
     db.close();
   });
 

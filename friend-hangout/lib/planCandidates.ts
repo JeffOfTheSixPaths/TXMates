@@ -190,9 +190,12 @@ export function diverseCandidates(activities: Activity[], limit: number): Activi
   return picked;
 }
 
+const DISCOVERY_CURATED_LEAD = 6;
+
 /**
- * Keep good live hits. When the page is thin or full of listicles, add curated
- * venues that match the city, the category, and a real query.
+ * Live and saved hits stay. Curated venues for this city and category are always
+ * mixed in, with a few real places at the front. A specific query only adds
+ * curated venues that match the topic, so a miss does not dump the whole city.
  */
 export function withCuratedFallback(
   activities: Activity[],
@@ -201,16 +204,32 @@ export function withCuratedFallback(
   const kept = activities
     .map((activity) => reclassifyActivity({ ...activity, sourceQuery: activity.sourceQuery || input.query }))
     .filter((activity) => !isJunkPlanListing(activity));
-  if (kept.length >= 3) return dedupeActivities(kept);
   const category = input.category || 'all';
-  const curated = curatedActivitiesForLocation(input.location).filter(
+  const curated = curatedForDiscovery(input.location, category, (input.query || '').trim());
+  const lead = leadCurated(curated, category);
+  return dedupeActivities([...lead, ...kept, ...curated]);
+}
+
+function curatedForDiscovery(location: string | undefined, category: string, query: string): Activity[] {
+  const curated = curatedActivitiesForLocation(location).filter(
     (activity) => category === 'all' || activity.category === category
   );
-  const query = (input.query || '').trim();
-  let extras = curated;
-  if (query) {
-    const ranked = searchCatalog(curated, query);
-    extras = ranked.relaxed ? [] : ranked.activities;
-  }
-  return dedupeActivities([...kept, ...extras]);
+  if (!query || isGeneralPlanQuery(query)) return curated;
+  const city = (location || '').replace(/\(.*?\)/g, '').split(',')[0]?.trim() || '';
+  const topic = city ? query.replace(new RegExp(`\\b${escapeRegExp(city)}\\b`, 'ig'), ' ') : query;
+  const ranked = searchCatalog(curated, topic);
+  return ranked.relaxed ? [] : ranked.activities;
+}
+
+function leadCurated(curated: Activity[], category: string): Activity[] {
+  if (category !== 'all') return curated;
+  const ranked = [...curated].sort(
+    (left, right) =>
+      Number(Boolean(right.tags?.includes('signature'))) - Number(Boolean(left.tags?.includes('signature')))
+  );
+  return takeVaried(ranked, DISCOVERY_CURATED_LEAD);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

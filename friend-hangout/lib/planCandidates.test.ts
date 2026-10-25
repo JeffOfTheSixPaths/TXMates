@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import type { Activity, ActivityCategory, HangoutPreferences } from '@/types';
 import { curatedVenueCounts } from './curatedActivities.ts';
 import { isListicleListing } from './musePlan.ts';
-import { assemblePlanCandidates, limitDiscoveredForPlan, selectPlanStops } from './planCandidates.ts';
+import { assemblePlanCandidates, limitDiscoveredForPlan, selectPlanStops, withCuratedFallback } from './planCandidates.ts';
 import { generatePlan } from './planner.ts';
 
 const CATEGORIES: ActivityCategory[] = ['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill'];
@@ -100,6 +100,73 @@ describe('curated venues and local fallback plans', () => {
     assert.equal(
       kept.some((activity) => activity.name.startsWith('TOP 10')),
       false
+    );
+  });
+
+  it('puts curated venues at the front of a long saved city list', () => {
+    const saved = Array.from({ length: 12 }, (_, index) =>
+      place({
+        id: `saved-${index}`,
+        name: `Saved Austin listing ${index}`,
+        location: 'Austin, TX',
+        category: index % 2 === 0 ? 'food' : 'music',
+        categoryLabel: index % 2 === 0 ? 'Food & BBQ' : 'Live Music',
+      })
+    );
+    saved.push(
+      place({
+        id: 'novel',
+        name: 'Novel Escape | Top-Rated Escape Rooms in Austin, TX',
+        location: 'Austin, TX',
+        category: 'gaming',
+        categoryLabel: 'Gaming & Arcades',
+      })
+    );
+    const blended = withCuratedFallback(saved, { location: 'Austin, TX', category: 'all', query: '' });
+    const lead = blended.slice(0, 6);
+    assert.ok(lead.every((activity) => activity.id.startsWith('curated-')));
+    assert.equal(new Set(lead.map((activity) => activity.category)).size, 6);
+    assert.ok(blended.some((activity) => activity.name === 'Saved Austin listing 0'));
+    assert.equal(
+      blended.some((activity) => activity.name.includes('Top-Rated')),
+      false
+    );
+    const names = blended.map((activity) => activity.name.toLowerCase());
+    assert.equal(names.length, new Set(names).size);
+  });
+
+  it('leads a category page with that category’s curated venues and dedupes by name', () => {
+    const blended = withCuratedFallback(
+      [
+        place({ id: 'saved-pecan', name: 'Pecan Lodge', location: 'Dallas, TX', category: 'food' }),
+        ...Array.from({ length: 6 }, (_, index) =>
+          place({
+            id: `dallas-${index}`,
+            name: `Dallas saved ${index}`,
+            location: 'Dallas, TX',
+            category: 'food',
+          })
+        ),
+      ],
+      { location: 'Dallas, TX', category: 'food', query: '' }
+    );
+    const firstSaved = blended.findIndex((activity) => activity.id.startsWith('dallas-'));
+    assert.ok(firstSaved >= 6);
+    assert.ok(blended.slice(0, firstSaved).every((activity) => activity.id.startsWith('curated-')));
+    assert.ok(blended.slice(0, firstSaved).every((activity) => activity.category === 'food'));
+    const pecans = blended.filter((activity) => activity.name === 'Pecan Lodge');
+    assert.equal(pecans.length, 1);
+    assert.equal(pecans[0]?.id.startsWith('curated-'), true);
+  });
+
+  it('leaves a specific miss on the live hit', () => {
+    const blended = withCuratedFallback(
+      [place({ id: 'doja', name: 'Doja Cat', category: 'music', categoryLabel: 'Live Music', location: 'Austin, TX' })],
+      { location: 'Austin, TX', category: 'all', query: 'Doja' }
+    );
+    assert.deepEqual(
+      blended.map((activity) => activity.name),
+      ['Doja Cat']
     );
   });
 

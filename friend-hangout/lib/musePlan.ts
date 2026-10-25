@@ -68,6 +68,9 @@ export function groupSizeInstruction(total: number): string {
 
 const LISTICLE_TITLE = /^\s*\d+\s+(best|top|great|fun|ultimate|essential|must|amazing)\b/i;
 const LISTICLE_LEAD = /^\s*(the\s+)?(absolute\s+|ultimate\s+)?(best|top)\b/i;
+const TOP_RATED = /\btop[-\s]rated\b/i;
+const PLURAL_CATEGORY_IN_TEXAS =
+  /\b(?:escape\s+rooms|restaurants|bars|breweries|cafes|bakeries|donuts|tacos|arcades|museums|parks|venues|activities|spots|places|games|clubs|joints|trails)\s+in\s+[^|,]{2,40},\s*tx\b/i;
 const PUBLISHER_SUFFIX =
   /\|\s*[^|]{0,48}\b(magazine|eater|houstonia|timeout|chronicle|infatuation|thrillist|texas monthly|do512|tripadvisor)\b/i;
 
@@ -79,6 +82,8 @@ export function isListicleListing(name: string, url?: string): boolean {
   return (
     LISTICLE_TITLE.test(title) ||
     LISTICLE_LEAD.test(title) ||
+    TOP_RATED.test(title) ||
+    PLURAL_CATEGORY_IN_TEXAS.test(title) ||
     /\b(best|top)\s+\d+\b/i.test(title) ||
     /\b\d+\s+best\b/i.test(title) ||
     /\bbest\b[^|]{0,60}\bin\b/i.test(title) ||
