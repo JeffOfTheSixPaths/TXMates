@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { NessieBudgetResponse } from '@/lib/nessieBudget';
 import type { SquadPricePointResponse } from '@/types';
 import { NessieSquadPriceAdvisor } from './NessieSquadPriceAdvisor';
@@ -20,6 +20,7 @@ import {
   Plus,
   Share2,
   Sparkles,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -27,8 +28,31 @@ import { ActivityCategory, Friend, HangoutPreferences } from '@/types';
 import { ACTIVITY_CATEGORIES, AUSTIN_NEIGHBORHOODS } from '@/lib/mockData';
 import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { heatStyle } from './OverlapRunner';
-import { calculateAvailabilityOverlap } from '@/lib/planner';
+import { calculateAvailabilityOverlap, compareCandidateDates, formatFriendlyDate } from '@/lib/planner';
 import { CATEGORY_ICONS } from './categoryIcons';
+
+function getNextDayFrom(baseIso: string, dayOffset: number): string {
+  const [y, m, d] = baseIso.split('-').map(Number);
+  const date = y && m && d ? new Date(y, m - 1, d) : new Date();
+  date.setDate(date.getDate() + dayOffset);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getNextWeekdayFrom(baseIso: string, targetDay: number): string {
+  const [y, m, d] = baseIso.split('-').map(Number);
+  const date = y && m && d ? new Date(y, m - 1, d) : new Date();
+  const currentDay = date.getDay();
+  let diff = targetDay - currentDay;
+  if (diff <= 0) diff += 7;
+  date.setDate(date.getDate() + diff);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 interface HangoutFormProps {
   preferences: HangoutPreferences;
@@ -65,8 +89,68 @@ export function HangoutForm({
   const [batchSyncLoading, setBatchSyncLoading] = useState(false);
   const [syncAllNotice, setSyncAllNotice] = useState<string | null>(null);
   const [singleSyncLoadingId, setSingleSyncLoadingId] = useState<string | null>(null);
+  const [newDateInput, setNewDateInput] = useState('');
 
-  const overlap = calculateAvailabilityOverlap(preferences.friends);
+  const selectedDatesList = useMemo(() => {
+    const list =
+      preferences.selectedDates && preferences.selectedDates.length > 0
+        ? preferences.selectedDates
+        : [preferences.date];
+    if (!list.includes(preferences.date)) {
+      return [preferences.date, ...list];
+    }
+    return list;
+  }, [preferences.selectedDates, preferences.date]);
+
+  const candidateDates = useMemo(
+    () => compareCandidateDates(preferences.friends, selectedDatesList),
+    [preferences.friends, selectedDatesList]
+  );
+
+  const handleSetActiveDate = (newDate: string) => {
+    onChange({
+      ...preferences,
+      date: newDate,
+      selectedDates: selectedDatesList.includes(newDate)
+        ? selectedDatesList
+        : [...selectedDatesList, newDate],
+    });
+  };
+
+  const handleAddCustomDate = () => {
+    if (!newDateInput) return;
+    if (!selectedDatesList.includes(newDateInput)) {
+      const updated = [...selectedDatesList, newDateInput].sort();
+      onChange({
+        ...preferences,
+        selectedDates: updated,
+      });
+    }
+    setNewDateInput('');
+  };
+
+  const handleAddShortcutDate = (targetDate: string) => {
+    if (!selectedDatesList.includes(targetDate)) {
+      const updated = [...selectedDatesList, targetDate].sort();
+      onChange({
+        ...preferences,
+        selectedDates: updated,
+      });
+    }
+  };
+
+  const handleRemoveDate = (dateToRemove: string) => {
+    if (selectedDatesList.length <= 1) return;
+    const updated = selectedDatesList.filter((d) => d !== dateToRemove);
+    const nextDate = preferences.date === dateToRemove ? updated[0] : preferences.date;
+    onChange({
+      ...preferences,
+      selectedDates: updated,
+      date: nextDate,
+    });
+  };
+
+  const overlap = calculateAvailabilityOverlap(preferences.friends, preferences.date);
   const hangoutId = preferences.id || 'txmates-demo';
 
   const handleBatchSyncGoogleCalendars = async () => {
@@ -140,10 +224,15 @@ export function HangoutForm({
           },
           availabilitySlots: [
             {
-              id: f.availabilitySlots[0]?.id || `slot-${f.id}`,
+              id:
+                f.availabilitySlots.find((s) => s.date === preferences.date)?.id ||
+                f.availabilitySlots[0]?.id ||
+                `slot-${f.id}`,
               startTime: data.suggestedStartTime,
               endTime: data.suggestedEndTime,
+              date: preferences.date,
             },
+            ...f.availabilitySlots.filter((s) => s.date && s.date !== preferences.date),
           ],
         };
       });
@@ -376,25 +465,151 @@ export function HangoutForm({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="block text-base font-semibold text-ink">
-            <span className="inline-flex items-center gap-1.5">
+        <div className="mt-6 border border-seam bg-pine p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Calendar className="h-4 w-4" aria-hidden />
-              Date
+              Candidate Dates ({candidateDates.length})
             </span>
-            <input
-              type="date"
-              value={preferences.date}
-              onChange={(e) => onChange({ ...preferences, date: e.target.value })}
-              className={`mt-1 ${fieldClass}`}
-            />
-          </label>
+            <span className="text-xs text-ink-soft">
+              Active plan: <strong className="text-ink">{formatFriendlyDate(preferences.date)}</strong>
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-ink-soft">
+            Compare dates and see which one has the highest friend availability. Switch between dates anytime.
+          </p>
+
+          {/* Candidate date cards */}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+            {candidateDates.map((cd) => {
+              const isActive = cd.date === preferences.date;
+              return (
+                <div
+                  key={cd.date}
+                  className={`relative flex flex-col justify-between border p-2.5 transition-all ${
+                    isActive
+                      ? "border-ink bg-sheet shadow-sm ring-1 ring-ink"
+                      : "border-seam bg-sheet/60 hover:border-ink/50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSetActiveDate(cd.date)}
+                      className="flex-1 text-left"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-ink">
+                          {cd.formattedDate}
+                        </span>
+                        {cd.isBest && candidateDates.length > 1 && (
+                          <span className="inline-flex items-center gap-0.5 bg-sun px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                            <Star className="h-2.5 w-2.5 fill-current" />
+                            Best
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-ink-soft">
+                        {cd.availableCount}/{cd.totalFriends} free
+                        {cd.overlapHours > 0 ? ` · ${cd.commonStart}–${cd.commonEnd}` : " · no overlap"}
+                      </div>
+                    </button>
+                    {candidateDates.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDate(cd.date)}
+                        title={`Remove ${cd.formattedDate}`}
+                        aria-label={`Remove date ${cd.formattedDate}`}
+                        className="p-1 text-ink-soft hover:text-tomato"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between border-t border-seam/40 pt-1.5">
+                    {isActive ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-leaf">
+                        <Check className="h-3.5 w-3.5" />
+                        Active plan date
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetActiveDate(cd.date)}
+                        className="text-xs font-medium text-ink-soft underline hover:text-ink"
+                      >
+                        Select this date
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add candidate date controls */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-seam/60 pt-3">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={newDateInput}
+                onChange={(e) => setNewDateInput(e.target.value)}
+                aria-label="New candidate date"
+                className="border border-seam bg-sheet px-2 py-1 text-sm text-ink focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomDate}
+                disabled={!newDateInput}
+                className="inline-flex items-center gap-1 border border-seam bg-sheet px-2.5 py-1 text-xs font-semibold text-ink hover:bg-pine disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add date
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
+              <span>Quick add:</span>
+              <button
+                type="button"
+                onClick={() => handleAddShortcutDate(getNextDayFrom(preferences.date, 1))}
+                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
+              >
+                + Next Day
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 5))}
+                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
+              >
+                + This Fri
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 6))}
+                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
+              >
+                + This Sat
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddShortcutDate(getNextWeekdayFrom(preferences.date, 0))}
+                className="border border-seam bg-sheet px-2 py-0.5 text-xs font-medium hover:bg-pine"
+              >
+                + This Sun
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
           <fieldset>
             <legend className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Clock className="h-4 w-4" aria-hidden />
-              Time of day
+              Time of day for {formatFriendlyDate(preferences.date)}
             </legend>
-            <div className="mt-1 grid grid-cols-2 gap-2">
+            <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(
                 [
                   { id: "afternoon", label: "Afternoon", sub: "12–5", start: "12:00", end: "17:00" },
@@ -403,7 +618,7 @@ export function HangoutForm({
                   { id: "all-day", label: "All day", sub: "Flexible", start: "11:00", end: "22:00" },
                 ] as const
               ).map((t) => {
-                const coverage = coverageCount(preferences.friends, t.start, t.end);
+                const coverage = coverageCount(preferences.friends, t.start, t.end, preferences.date);
                 const selected = preferences.timePreference === t.id;
                 return (
                   <button

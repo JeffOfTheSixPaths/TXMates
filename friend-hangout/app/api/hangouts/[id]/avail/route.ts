@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateFriendSubmission } from '@/lib/db';
-import { ActivityCategory, FriendCalendarSyncDetails } from '@/types';
+import { ActivityCategory, FriendCalendarSyncDetails, TimeSlot } from '@/types';
 
 export async function POST(
   req: NextRequest,
@@ -13,6 +13,8 @@ export async function POST(
       friendName?: string;
       startTime: string;
       endTime: string;
+      slots?: TimeSlot[];
+      date?: string;
       budgetPreference?: number;
       topInterests?: ActivityCategory[];
       calendarSynced?: boolean;
@@ -30,6 +32,8 @@ export async function POST(
       friendName: body.friendName,
       startTime: body.startTime,
       endTime: body.endTime,
+      slots: body.slots,
+      date: body.date,
       budgetPreference: body.budgetPreference,
       topInterests: body.topInterests,
       calendarSynced: body.calendarSynced,

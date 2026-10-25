@@ -42,13 +42,26 @@ export function coverageCount(
   friends: Friend[],
   start: string,
   end: string,
-  draft?: { friendId: string; startTime: string; endTime: string }
+  draftOrDate?: { friendId: string; startTime: string; endTime: string } | string,
+  targetDateParam?: string
 ): { count: number; total: number; ratio: number; word: AvailabilityWord } {
+  const draft = typeof draftOrDate === 'object' && draftOrDate !== null ? draftOrDate : undefined;
+  const targetDate = typeof draftOrDate === 'string' ? draftOrDate : targetDateParam;
   const names = friends.filter((friend) => {
-    const slot =
+    let slot =
       draft && friend.id === draft.friendId
         ? { startTime: draft.startTime, endTime: draft.endTime }
-        : friend.availabilitySlots[0];
+        : null;
+    if (!slot) {
+      if (targetDate) {
+        slot = friend.availabilitySlots.find((s) => s.date === targetDate) || null;
+        if (!slot) {
+          slot = friend.availabilitySlots.find((s) => !s.date) || null;
+        }
+      } else {
+        slot = friend.availabilitySlots[0] || null;
+      }
+    }
     return slot ? rangesOverlap(slot.startTime, slot.endTime, start, end) : false;
   });
   const count = names.length;

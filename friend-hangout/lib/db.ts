@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { HangoutPreferences, Friend, ActivityCategory, FriendCalendarSyncDetails } from '@/types';
+import type { HangoutPreferences, Friend, ActivityCategory, FriendCalendarSyncDetails, TimeSlot } from '@/types';
 import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
@@ -28,6 +28,26 @@ export function ensureFriendCalendarColumns(db: DatabaseSync) {
   }
   if (!columns.has('calendar_sync_details')) {
     db.exec(`ALTER TABLE friend_availabilities ADD COLUMN calendar_sync_details TEXT`);
+  }
+}
+
+export function ensureHangoutDateColumns(db: DatabaseSync) {
+  const hangoutCols = new Set(
+    (db.prepare(`PRAGMA table_info(hangouts)`).all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  if (!hangoutCols.has('selected_dates')) {
+    db.exec(`ALTER TABLE hangouts ADD COLUMN selected_dates TEXT`);
+  }
+
+  const friendCols = new Set(
+    (db.prepare(`PRAGMA table_info(friend_availabilities)`).all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  if (!friendCols.has('slots_json')) {
+    db.exec(`ALTER TABLE friend_availabilities ADD COLUMN slots_json TEXT`);
   }
 }
 
@@ -71,6 +91,7 @@ export function initHangoutDb(db: DatabaseSync) {
   ensureMuseUsage(db);
   ensureItineraryLockColumns(db);
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   ensureUserItemVotesTable(db);
 }
 
@@ -87,6 +108,7 @@ interface HangoutRow {
   group_name: string;
   location: string;
   date: string;
+  selected_dates?: string | null;
   time_preference: 'afternoon' | 'evening' | 'all-day' | 'night';
   max_budget: number;
   selected_interests: string;
@@ -102,6 +124,7 @@ interface FriendRow {
   avatar_color: string;
   start_time: string;
   end_time: string;
+  slots_json?: string | null;
   budget_preference: number | null;
   top_interests: string | null;
   status: 'pending' | 'submitted';
@@ -112,15 +135,21 @@ interface FriendRow {
 
 export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = getDb()): string {
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   const id = hangout.id || 'txmates-demo';
+  const selectedDates =
+    hangout.selectedDates && hangout.selectedDates.length > 0
+      ? hangout.selectedDates
+      : [hangout.date];
 
   const upsertHangout = db.prepare(`
-    INSERT INTO hangouts (id, group_name, location, date, time_preference, max_budget, selected_interests, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO hangouts (id, group_name, location, date, selected_dates, time_preference, max_budget, selected_interests, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
       group_name = excluded.group_name,
       location = excluded.location,
       date = excluded.date,
+      selected_dates = excluded.selected_dates,
       time_preference = excluded.time_preference,
       max_budget = excluded.max_budget,
       selected_interests = excluded.selected_interests,
@@ -132,6 +161,7 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
     hangout.groupName,
     hangout.location,
     hangout.date,
+    JSON.stringify(selectedDates),
     hangout.timePreference,
     hangout.maxBudgetPerPerson,
     JSON.stringify(hangout.selectedInterests)
@@ -140,14 +170,15 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
   const upsertFriend = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      start_time, end_time, slots_json, budget_preference, top_interests, status, submitted_at,
       calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = excluded.friend_name,
       start_time = excluded.start_time,
       end_time = excluded.end_time,
+      slots_json = coalesce(excluded.slots_json, friend_availabilities.slots_json),
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
       status = CASE WHEN friend_availabilities.status = 'submitted' THEN 'submitted' ELSE excluded.status END,
@@ -166,6 +197,7 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
       f.avatarColor,
       slot.startTime,
       slot.endTime,
+      f.availabilitySlots && f.availabilitySlots.length > 0 ? JSON.stringify(f.availabilitySlots) : null,
       f.budgetPreference || null,
       f.topInterests ? JSON.stringify(f.topInterests) : null,
       f.status || 'pending',
@@ -235,33 +267,52 @@ export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
   if (!row) return null;
 
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
   const getFriends = db.prepare(`SELECT * FROM friend_availabilities WHERE hangout_id = ? ORDER BY created_at ASC`);
   const friendRows = getFriends.all(hangoutId) as unknown as FriendRow[];
 
-  const friends: Friend[] = friendRows.map((fr) => ({
-    id: fr.friend_id,
-    name: fr.friend_name,
-    avatarColor: fr.avatar_color,
-    availabilitySlots: [
-      {
-        id: `slot-${fr.friend_id}`,
-        startTime: fr.start_time,
-        endTime: fr.end_time,
-      },
-    ],
-    budgetPreference: fr.budget_preference || undefined,
-    topInterests: fr.top_interests ? JSON.parse(fr.top_interests) : [],
-    status: fr.status,
-    submittedAt: fr.submitted_at || undefined,
-    calendarSynced: fr.calendar_synced === 1,
-    calendarSyncDetails: fr.calendar_sync_details ? JSON.parse(fr.calendar_sync_details) : undefined,
-  }));
+  const selectedDates: string[] = row.selected_dates
+    ? JSON.parse(row.selected_dates)
+    : [row.date];
+
+  const friends: Friend[] = friendRows.map((fr) => {
+    let availabilitySlots: TimeSlot[] = [];
+    if (fr.slots_json) {
+      try {
+        availabilitySlots = JSON.parse(fr.slots_json);
+      } catch {
+        availabilitySlots = [];
+      }
+    }
+    if (!availabilitySlots || availabilitySlots.length === 0) {
+      availabilitySlots = [
+        {
+          id: `slot-${fr.friend_id}`,
+          startTime: fr.start_time,
+          endTime: fr.end_time,
+        },
+      ];
+    }
+    return {
+      id: fr.friend_id,
+      name: fr.friend_name,
+      avatarColor: fr.avatar_color,
+      availabilitySlots,
+      budgetPreference: fr.budget_preference || undefined,
+      topInterests: fr.top_interests ? JSON.parse(fr.top_interests) : [],
+      status: fr.status,
+      submittedAt: fr.submitted_at || undefined,
+      calendarSynced: fr.calendar_synced === 1,
+      calendarSyncDetails: fr.calendar_sync_details ? JSON.parse(fr.calendar_sync_details) : undefined,
+    };
+  });
 
   return {
     id: row.id,
     groupName: row.group_name,
     location: row.location,
     date: row.date,
+    selectedDates,
     timePreference: row.time_preference,
     maxBudgetPerPerson: row.max_budget,
     selectedInterests: JSON.parse(row.selected_interests) as ActivityCategory[],
@@ -277,6 +328,8 @@ export function updateFriendSubmission(
     friendName?: string;
     startTime: string;
     endTime: string;
+    slots?: TimeSlot[];
+    date?: string;
     budgetPreference?: number;
     topInterests?: ActivityCategory[];
     calendarSynced?: boolean;
@@ -285,6 +338,36 @@ export function updateFriendSubmission(
 ): boolean {
   const db = getDb();
   ensureFriendCalendarColumns(db);
+  ensureHangoutDateColumns(db);
+
+  let slotsJson: string | null = null;
+  if (data.slots && data.slots.length > 0) {
+    slotsJson = JSON.stringify(data.slots);
+  } else if (data.date) {
+    const existing = db
+      .prepare('SELECT slots_json, start_time, end_time FROM friend_availabilities WHERE hangout_id = ? AND friend_id = ?')
+      .get(hangoutId, friendId) as { slots_json?: string; start_time?: string; end_time?: string } | undefined;
+    let slots: TimeSlot[] = [];
+    if (existing?.slots_json) {
+      try {
+        slots = JSON.parse(existing.slots_json);
+      } catch {
+        slots = [];
+      }
+    }
+    const idx = slots.findIndex((s) => s.date === data.date);
+    if (idx >= 0) {
+      slots[idx] = { ...slots[idx], startTime: data.startTime, endTime: data.endTime };
+    } else {
+      slots.push({
+        id: `slot-${friendId}-${data.date}`,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+      });
+    }
+    slotsJson = JSON.stringify(slots);
+  }
 
   const checkHangout = db.prepare('SELECT id FROM hangouts WHERE id = ?');
   let hangout = checkHangout.get(hangoutId);
@@ -342,14 +425,15 @@ export function updateFriendSubmission(
   const updateStmt = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      start_time, end_time, slots_json, budget_preference, top_interests, status, submitted_at,
       calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = coalesce(?, friend_availabilities.friend_name),
       start_time = excluded.start_time,
       end_time = excluded.end_time,
+      slots_json = coalesce(excluded.slots_json, friend_availabilities.slots_json),
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
       status = 'submitted',
@@ -366,6 +450,7 @@ export function updateFriendSubmission(
     'bg-teal-600 text-white',
     data.startTime,
     data.endTime,
+    slotsJson,
     data.budgetPreference || null,
     data.topInterests ? JSON.stringify(data.topInterests) : null,
     now,

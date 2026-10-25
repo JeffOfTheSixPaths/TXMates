@@ -21,16 +21,29 @@ function covers(startTime: string, endTime: string, h24: number) {
 
 export function buildRunnerHours(
   friends: Friend[],
-  draft?: { friendId: string; startTime: string; endTime: string }
+  draft?: { friendId: string; startTime: string; endTime: string; date?: string },
+  targetDate?: string
 ): RunnerHour[] {
   return HOURS.map((h24) => {
     const names = friends
       .filter((friend) => {
-        if (draft && friend.id === draft.friendId) {
+        if (
+          draft &&
+          friend.id === draft.friendId &&
+          (!draft.date || !targetDate || draft.date === targetDate)
+        ) {
           return covers(draft.startTime, draft.endTime, h24);
         }
-        const slot = friend.availabilitySlots[0];
-        return slot ? covers(slot.startTime, slot.endTime, h24) : false;
+        const matchingSlots = targetDate
+          ? friend.availabilitySlots.filter((s) => !s.date || s.date === targetDate)
+          : friend.availabilitySlots;
+
+        if (matchingSlots.length > 0) {
+          return matchingSlots.some((slot) => covers(slot.startTime, slot.endTime, h24));
+        }
+
+        const fallbackSlot = friend.availabilitySlots[0];
+        return fallbackSlot ? covers(fallbackSlot.startTime, fallbackSlot.endTime, h24) : false;
       })
       .map((friend) => friend.name);
     const h12 = h24 % 12 === 0 ? 12 : h24 % 12;

@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Share2,
   ChevronRight,
+  Star,
 } from 'lucide-react';
 import { ActivityCategory, Friend, HangoutPreferences, FriendCalendarSyncDetails } from '@/types';
 import { ACTIVITY_CATEGORIES, INITIAL_FRIENDS } from '@/lib/mockData';
@@ -16,6 +17,7 @@ import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
 import { buildRunnerHours, heatStyle, OverlapRunner } from '@/components/OverlapRunner';
 import { CATEGORY_ICONS } from '@/components/categoryIcons';
 import { GoogleCalendarImporter } from '@/components/GoogleCalendarImporter';
+import { compareCandidateDates, formatFriendlyDate } from '@/lib/planner';
 
 interface AvailPageProps {
   params: Promise<{ id: string }>;
@@ -32,6 +34,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   const [hangout, setHangout] = useState<HangoutPreferences | null>(null);
   const [selectedFriendId, setSelectedFriendId] = useState<string>(targetMateId || 'f-2');
   const [friendName, setFriendName] = useState<string>('Sam M.');
+  const [activeDateTab, setActiveDateTab] = useState<string>('');
+  const [dateSlots, setDateSlots] = useState<Record<string, { startTime: string; endTime: string }>>({});
   const [startTime, setStartTime] = useState<string>('14:30');
   const [endTime, setEndTime] = useState<string>('20:30');
   const [budgetPref, setBudgetPref] = useState<number>(45);
@@ -46,6 +50,42 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   const [calendarSynced, setCalendarSynced] = useState<boolean>(false);
   const [calendarSyncDetails, setCalendarSyncDetails] = useState<FriendCalendarSyncDetails | undefined>(undefined);
 
+  const candidateDatesList = useMemo(() => {
+    if (!hangout) return ['2026-10-26'];
+    const list =
+      hangout.selectedDates && hangout.selectedDates.length > 0
+        ? hangout.selectedDates
+        : [hangout.date];
+    return list.includes(hangout.date) ? list : [hangout.date, ...list];
+  }, [hangout]);
+
+  const activeDate = activeDateTab || hangout?.date || candidateDatesList[0] || '2026-10-26';
+
+  const candidateSummaries = useMemo(() => {
+    return compareCandidateDates(hangout?.friends || INITIAL_FRIENDS, candidateDatesList);
+  }, [hangout?.friends, candidateDatesList]);
+
+  const populateFriendSlots = (targetFriend: Friend, candidateDates: string[], currentActiveDate: string) => {
+    const slotsMap: Record<string, { startTime: string; endTime: string }> = {};
+    targetFriend.availabilitySlots.forEach((slot) => {
+      if (slot.date) {
+        slotsMap[slot.date] = { startTime: slot.startTime, endTime: slot.endTime };
+      }
+    });
+
+    const defaultSlot = targetFriend.availabilitySlots[0] || { startTime: '14:30', endTime: '20:30' };
+    candidateDates.forEach((d) => {
+      if (!slotsMap[d]) {
+        slotsMap[d] = { startTime: defaultSlot.startTime, endTime: defaultSlot.endTime };
+      }
+    });
+
+    setDateSlots(slotsMap);
+    const activeSlot = slotsMap[currentActiveDate] || defaultSlot;
+    setStartTime(activeSlot.startTime);
+    setEndTime(activeSlot.endTime);
+  };
+
   // Fetch hangout from SQLite API and initialize friend values
   useEffect(() => {
     async function loadHangout() {
@@ -55,15 +95,19 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
           const data = await res.json();
           if (data.hangout) {
             setHangout(data.hangout);
+            const dates =
+              data.hangout.selectedDates && data.hangout.selectedDates.length > 0
+                ? data.hangout.selectedDates
+                : [data.hangout.date];
+            const initialDate = data.hangout.date || dates[0] || '2026-10-26';
+            setActiveDateTab(initialDate);
+
             const targetFriend =
               data.hangout.friends.find((f: Friend) => f.id === (targetMateId || 'f-2')) ||
               data.hangout.friends[0];
             if (targetFriend) {
               setFriendName(targetFriend.name);
-              if (targetFriend.availabilitySlots.length > 0) {
-                setStartTime(targetFriend.availabilitySlots[0].startTime);
-                setEndTime(targetFriend.availabilitySlots[0].endTime);
-              }
+              populateFriendSlots(targetFriend, dates, initialDate);
               if (targetFriend.budgetPreference) {
                 setBudgetPref(targetFriend.budgetPreference);
               }
@@ -80,17 +124,27 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
       }
 
       // Fallback default
+      const defaultDates = ['2026-10-26', '2026-10-27', '2026-10-31'];
       setHangout({
         id: hangoutId,
         groupName: 'Group Name Here',
         friendCount: 4,
         location: 'Austin, TX',
         date: '2026-10-26',
+        selectedDates: defaultDates,
         timePreference: 'afternoon',
         maxBudgetPerPerson: 50,
         selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
         friends: INITIAL_FRIENDS,
       });
+      setActiveDateTab('2026-10-26');
+      const targetFriend =
+        INITIAL_FRIENDS.find((f: Friend) => f.id === (targetMateId || 'f-2')) ||
+        INITIAL_FRIENDS[0];
+      if (targetFriend) {
+        setFriendName(targetFriend.name);
+        populateFriendSlots(targetFriend, defaultDates, '2026-10-26');
+      }
     }
 
     loadHangout();
@@ -99,10 +153,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   const handleSelectFriend = (f: Friend) => {
     setSelectedFriendId(f.id);
     setFriendName(f.name);
-    if (f.availabilitySlots.length > 0) {
-      setStartTime(f.availabilitySlots[0].startTime);
-      setEndTime(f.availabilitySlots[0].endTime);
-    }
+    populateFriendSlots(f, candidateDatesList, activeDate);
     if (f.budgetPreference) {
       setBudgetPref(f.budgetPreference);
     }
@@ -113,19 +164,81 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
     setCalendarSyncDetails(f.calendarSyncDetails);
   };
 
+  const handleStartTimeChange = (newStart: string) => {
+    setStartTime(newStart);
+    setDateSlots((prev) => ({
+      ...prev,
+      [activeDate]: { startTime: newStart, endTime: prev[activeDate]?.endTime || endTime },
+    }));
+  };
+
+  const handleEndTimeChange = (newEnd: string) => {
+    setEndTime(newEnd);
+    setDateSlots((prev) => ({
+      ...prev,
+      [activeDate]: { startTime: prev[activeDate]?.startTime || startTime, endTime: newEnd },
+    }));
+  };
+
+  const applyPreset = (start: string, end: string) => {
+    setStartTime(start);
+    setEndTime(end);
+    setDateSlots((prev) => ({
+      ...prev,
+      [activeDate]: { startTime: start, endTime: end },
+    }));
+  };
+
+  const handleSwitchDateTab = (newDate: string) => {
+    const currentMap = {
+      ...dateSlots,
+      [activeDate]: { startTime, endTime },
+    };
+    setDateSlots(currentMap);
+    setActiveDateTab(newDate);
+
+    const targetSlot = currentMap[newDate] || { startTime, endTime };
+    setStartTime(targetSlot.startTime);
+    setEndTime(targetSlot.endTime);
+  };
+
+  const handleApplyToAllDates = () => {
+    const updated: Record<string, { startTime: string; endTime: string }> = {};
+    candidateDatesList.forEach((d) => {
+      updated[d] = { startTime, endTime };
+    });
+    setDateSlots(updated);
+  };
+
   const runnerHours = useMemo(
     () =>
-      buildRunnerHours(hangout?.friends || INITIAL_FRIENDS, {
-        friendId: selectedFriendId,
-        startTime,
-        endTime,
-      }),
-    [hangout, selectedFriendId, startTime, endTime]
+      buildRunnerHours(
+        hangout?.friends || INITIAL_FRIENDS,
+        {
+          friendId: selectedFriendId,
+          startTime,
+          endTime,
+          date: activeDate,
+        },
+        activeDate
+      ),
+    [hangout, selectedFriendId, startTime, endTime, activeDate]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const mergedDateSlots = {
+      ...dateSlots,
+      [activeDate]: { startTime, endTime },
+    };
+
+    const slotsToSubmit = candidateDatesList.map((d) => ({
+      date: d,
+      startTime: mergedDateSlots[d]?.startTime || startTime,
+      endTime: mergedDateSlots[d]?.endTime || endTime,
+    }));
 
     try {
       await fetch(`/api/hangouts/${hangoutId}/avail`, {
@@ -136,6 +249,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
           friendName: friendName || 'Friend',
           startTime,
           endTime,
+          date: activeDate,
+          slots: slotsToSubmit,
           budgetPreference: budgetPref,
           topInterests: selectedInterests,
           calendarSynced,
@@ -157,11 +272,6 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     }
-  };
-
-  const applyPreset = (start: string, end: string) => {
-    setStartTime(start);
-    setEndTime(end);
   };
 
   const toggleInterest = (catId: ActivityCategory) => {
@@ -206,7 +316,9 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="h-4 w-4" aria-hidden />
-              {hangout?.date || "2026-10-26"}
+              {candidateDatesList.length > 1
+                ? `${candidateDatesList.length} dates proposed`
+                : formatFriendlyDate(activeDate)}
             </span>
             <span>{hangout?.friends.length || 4} mates</span>
             <span className="tabular-nums">~${hangout?.maxBudgetPerPerson || 50} a person</span>
@@ -219,7 +331,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
               <CheckCircle2 className="mx-auto h-8 w-8 text-leaf" aria-hidden />
               <h2 className="mt-3 text-2xl font-semibold text-ink">Hours saved</h2>
               <p className="mx-auto mt-2 max-w-prose text-base text-ink-soft">
-                Thanks {friendName}. {startTime} to {endTime} is stored for {hangout?.groupName || "the group"}.
+                Thanks {friendName}. Your availability for {candidateDatesList.length > 1 ? `${candidateDatesList.length} proposed dates` : formatFriendlyDate(activeDate)} is stored for {hangout?.groupName || "the group"}.
               </p>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                 <Link
@@ -281,11 +393,61 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
 
               <fieldset className="border-t border-seam pt-6">
                 <legend className="text-lg font-semibold text-ink">
-                  When are you free? {hangout?.date || "Selected day"}
+                  When are you free? {formatFriendlyDate(activeDate)}
                 </legend>
                 <p className="mt-1 text-sm text-ink-soft">
                   Sync your Google Calendar to auto-fill your open window, or choose a preset below.
                 </p>
+
+                {candidateDatesList.length > 1 && (
+                  <div className="mt-4 border border-seam bg-pine p-3">
+                    <p className="text-xs font-semibold text-ink">
+                      Proposed Dates ({candidateDatesList.length}) - Select a date to enter availability:
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {candidateSummaries.map((cd) => {
+                        const isTabActive = cd.date === activeDate;
+                        const hasCustomSlot = Boolean(dateSlots[cd.date]);
+                        return (
+                          <button
+                            type="button"
+                            key={cd.date}
+                            onClick={() => handleSwitchDateTab(cd.date)}
+                            className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-semibold transition-all ${
+                              isTabActive
+                                ? "border-ink bg-sun text-ink shadow-sm ring-1 ring-ink"
+                                : "border-seam bg-sheet text-ink hover:bg-pine"
+                            }`}
+                          >
+                            <Calendar className="h-3.5 w-3.5" aria-hidden />
+                            <span>{cd.formattedDate}</span>
+                            {cd.isBest && (
+                              <span className="inline-flex items-center gap-0.5 bg-ink px-1 py-0.5 text-[10px] font-bold text-paper">
+                                <Star className="h-2.5 w-2.5 fill-current text-sun" />
+                                Best
+                              </span>
+                            )}
+                            {hasCustomSlot && (
+                              <span className="text-[11px] font-bold text-leaf">✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-seam/50 pt-2 text-xs">
+                      <span className="text-ink-soft">
+                        Editing hours for: <strong className="text-ink">{formatFriendlyDate(activeDate)}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleApplyToAllDates}
+                        className="font-semibold text-leaf underline hover:text-ink"
+                      >
+                        Apply {startTime}–{endTime} to all {candidateDatesList.length} dates
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3">
                   <GoogleCalendarImporter
@@ -294,17 +456,17 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                         id: selectedFriendId,
                         name: friendName,
                         avatarColor: 'bg-teal-600 text-white',
-                        availabilitySlots: [{ id: 'slot-curr', startTime, endTime }],
+                        availabilitySlots: [{ id: 'slot-curr', startTime, endTime, date: activeDate }],
                         topInterests: selectedInterests,
                         calendarSynced,
                         calendarSyncDetails,
                       }
                     }
-                    date={hangout?.date || '2026-10-26'}
+                    date={activeDate}
                     timePreference={hangout?.timePreference || 'afternoon'}
                     onSyncComplete={(newStart, newEnd, syncDetails) => {
-                      setStartTime(newStart);
-                      setEndTime(newEnd);
+                      handleStartTimeChange(newStart);
+                      handleEndTimeChange(newEnd);
                       setCalendarSynced(true);
                       setCalendarSyncDetails(syncDetails);
                     }}
@@ -319,11 +481,17 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     ["11:00", "22:00", "All day", "11–10"],
                   ].map(([start, end, label, sub]) => {
                     const friends = hangout?.friends || INITIAL_FRIENDS;
-                    const coverage = coverageCount(friends, start, end, {
-                      friendId: selectedFriendId,
-                      startTime,
-                      endTime,
-                    });
+                    const coverage = coverageCount(
+                      friends,
+                      start,
+                      end,
+                      {
+                        friendId: selectedFriendId,
+                        startTime,
+                        endTime,
+                      },
+                      activeDate
+                    );
                     const selected = startTime === start && endTime === end;
                     return (
                       <button
@@ -350,7 +518,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     <input
                       type="time"
                       value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
+                      onChange={(e) => handleStartTimeChange(e.target.value)}
                       required
                       className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-semibold text-ink"
                     />
@@ -360,7 +528,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     <input
                       type="time"
                       value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
                       required
                       className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-semibold text-ink"
                     />
@@ -372,7 +540,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 <h2 className="text-lg font-semibold text-ink">Group overlap</h2>
                 <OverlapRunner
                   hours={runnerHours}
-                  summary="Full green means every mate, including the hours you just picked, is free. A lighter green means only some are. An empty cell means nobody is."
+                  summary={`Availability for ${formatFriendlyDate(activeDate)}. Full green means every mate is free. Switch candidate dates above to compare.`}
                 />
               </div>
 

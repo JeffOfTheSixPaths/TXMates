@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Calendar, Compass } from 'lucide-react';
+import { Calendar, Compass, Star } from 'lucide-react';
 import {
   Activity,
   HangoutPreferences,
@@ -10,7 +10,7 @@ import {
   SquadPricePointResponse,
 } from '@/types';
 import { INITIAL_FRIENDS } from '@/lib/mockData';
-import { generatePlan, buildItinerary, calculateAvailabilityOverlap } from '@/lib/planner';
+import { generatePlan, buildItinerary, calculateAvailabilityOverlap, compareCandidateDates } from '@/lib/planner';
 import { Header } from '@/components/Header';
 import { HangoutForm } from '@/components/HangoutForm';
 import { PlanningViews } from '@/components/PlanningViews';
@@ -33,6 +33,7 @@ const DEFAULT_PREFERENCES: HangoutPreferences = {
   friendCount: 4,
   location: 'Austin, TX',
   date: '2026-10-26',
+  selectedDates: ['2026-10-26', '2026-10-27', '2026-10-31'],
   timePreference: 'afternoon',
   maxBudgetPerPerson: 50,
   selectedInterests: ['food', 'music', 'outdoors', 'gaming'],
@@ -419,10 +420,19 @@ export default function Home() {
     }));
   };
 
-  const overlap = calculateAvailabilityOverlap(preferences.friends);
+  const candidateDates = useMemo(() => {
+    const list =
+      preferences.selectedDates && preferences.selectedDates.length > 0
+        ? preferences.selectedDates
+        : [preferences.date];
+    const uniqueList = list.includes(preferences.date) ? list : [preferences.date, ...list];
+    return compareCandidateDates(preferences.friends, uniqueList);
+  }, [preferences.friends, preferences.selectedDates, preferences.date]);
+
+  const overlap = calculateAvailabilityOverlap(preferences.friends, preferences.date);
   const runnerHours = useMemo(
-    () => buildRunnerHours(preferences.friends),
-    [preferences.friends]
+    () => buildRunnerHours(preferences.friends, undefined, preferences.date),
+    [preferences.friends, preferences.date]
   );
   const overlapSummary = overlap.allFriendsAvailable
     ? `All ${preferences.friends.length} mates free, ${overlap.commonStart} to ${overlap.commonEnd}.`
@@ -465,6 +475,45 @@ export default function Home() {
               {isGenerating ? "Refreshing the plan…" : "Refresh the plan"}
             </button>
           </div>
+
+          {candidateDates.length > 1 && (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-ink-soft">
+                Proposed Dates:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {candidateDates.map((cd) => {
+                  const isActive = cd.date === preferences.date;
+                  return (
+                    <button
+                      type="button"
+                      key={cd.date}
+                      onClick={() =>
+                        setPreferences((prev) => ({ ...prev, date: cd.date }))
+                      }
+                      className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-semibold transition-all ${
+                        isActive
+                          ? "border-ink bg-sheet text-ink shadow-sm ring-1 ring-ink"
+                          : "border-seam bg-pine text-ink-soft hover:bg-sheet hover:text-ink"
+                      }`}
+                    >
+                      <Calendar className="h-3.5 w-3.5" aria-hidden />
+                      <span>{cd.formattedDate}</span>
+                      {cd.isBest && (
+                        <span className="inline-flex items-center gap-0.5 bg-sun px-1 py-0.5 text-[10px] font-bold text-ink">
+                          <Star className="h-2.5 w-2.5 fill-current" />
+                          Best
+                        </span>
+                      )}
+                      <span className="text-xs opacity-75">
+                        ({cd.availableCount}/{cd.totalFriends})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <OverlapRunner hours={runnerHours} summary={overlapSummary} />
 
