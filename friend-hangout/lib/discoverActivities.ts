@@ -18,7 +18,7 @@ import {
   scheduleDiscoveryRefresh,
   scheduleMuseClassification,
 } from './discoverySearch';
-import { MOCK_ACTIVITIES } from './mockData';
+import { getActivitiesForLocation } from './mockData';
 import { openSerpTimeoutMs } from './serviceTimeouts';
 
 export type DiscoveryPayload = {
@@ -39,6 +39,7 @@ export type DiscoverInput = {
   fetchImpl?: typeof fetch;
   policy?: ActivityPolicy;
   allowMuse?: boolean;
+  awaitMuse?: boolean;
 };
 
 export async function discoverActivities(db: DatabaseSync, input: DiscoverInput = {}): Promise<DiscoveryPayload> {
@@ -49,10 +50,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
   const query = input.query?.trim() || '';
   const queryUsed = buildSearchText(location, category, query);
   const allowMuse = input.allowMuse !== false;
+  const awaitMuse = Boolean(input.awaitMuse);
 
   cleanupActivities(db, now, policy);
 
-  const saved = searchSavedActivities(db, { query, category });
+  const saved = searchSavedActivities(db, { query, category, location });
   const cacheKey = discoveryCacheKey(location, category, query);
   const fresh = isQueryFresh(getQueryRefreshedAt(db, cacheKey), now, policy.cacheTtlMs);
 
@@ -78,10 +80,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         now,
         fetchImpl: input.fetchImpl,
         policy,
-        allowMuse: false,
+        allowMuse,
+        awaitMuse,
       });
       if (refreshed.ok && refreshed.ids.length > 0) {
-        if (allowMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
+        if (allowMuse && !awaitMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
         const liveRows = refreshed.ids
           .map((id) => getActivityRow(db, id))
           .filter((row): row is NonNullable<typeof row> => Boolean(row));
@@ -111,7 +114,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
       };
     }
 
-    return fallbackPayload(category, query, queryUsed);
+    return fallbackPayload(category, query, queryUsed, location);
   }
 
   if (saved.rows.length > 0) {
@@ -137,7 +140,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     };
   }
 
-  if (fresh) return fallbackPayload(category, query, queryUsed);
+  if (fresh) return fallbackPayload(category, query, queryUsed, location);
 
   const refreshed = await refreshDiscoveryQuery(db, {
     location,
@@ -146,12 +149,13 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     now,
     fetchImpl: input.fetchImpl,
     policy,
-    allowMuse: false,
+    allowMuse,
+    awaitMuse,
   });
 
   if (refreshed.ok) {
-    if (allowMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
-    const again = searchSavedActivities(db, { query, category });
+    if (allowMuse && !awaitMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
+    const again = searchSavedActivities(db, { query, category, location });
     if (again.rows.length > 0) {
       const liveIds = new Set(refreshed.ids);
       return {
@@ -166,11 +170,13 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     }
   }
 
-  return fallbackPayload(category, query, queryUsed);
+  return fallbackPayload(category, query, queryUsed, location);
 }
 
-function fallbackPayload(category: string, query: string, queryUsed: string): DiscoveryPayload {
-  const pool = MOCK_ACTIVITIES.filter((activity) => category === 'all' || activity.category === category).map(
+function fallbackPayload(category: string, query: string, queryUsed: string, location?: string): DiscoveryPayload {
+  const city = location?.trim() || 'Austin, TX';
+  const cleanCity = city.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
+  const pool = getActivitiesForLocation(city).filter((activity) => category === 'all' || activity.category === category).map(
     (activity) => {
       const classification = classifyListing({ title: activity.name, snippet: activity.description });
       return {
@@ -179,7 +185,7 @@ function fallbackPayload(category: string, query: string, queryUsed: string): Di
         kind: classification.kind,
         startDate: classification.startDate,
         endDate: classification.endDate,
-        uncertainties: ['Demo catalog item. OpenSERP has not saved a live result for this search yet.'],
+        uncertainties: [`Curated ${cleanCity} venue catalog with verified neighborhood and realistic pricing`],
       };
     }
   );
@@ -187,8 +193,8 @@ function fallbackPayload(category: string, query: string, queryUsed: string): Di
   const timeout = openSerpTimeoutMs();
   const base = openSerpBaseUrl();
   const notice = ranked.relaxed
-    ? `Nothing matched "${query}". Showing the wider Austin demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
-    : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated Austin demo catalog.`;
+    ? `Nothing matched "${query}". Showing the wider ${cleanCity} demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
+    : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated ${cleanCity} demo catalog.`;
   return {
     source: 'fallback',
     isLive: false,

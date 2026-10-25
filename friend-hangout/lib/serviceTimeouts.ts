@@ -2,7 +2,7 @@ export const DEFAULT_OPENSERP_TIMEOUT_MS = 15_000;
 export const MAX_OPENSERP_TIMEOUT_MS = 30_000;
 export const DEFAULT_MUSE_TIMEOUT_MS = 25_000;
 export const MAX_MUSE_TIMEOUT_MS = 60_000;
-export const DEFAULT_OPENSERP_ENGINES = 'duckduckgo,bing';
+export const DEFAULT_OPENSERP_ENGINES = 'bing,duckduckgo';
 
 const ENGINE_NAME = /^[a-z0-9_-]+$/i;
 
