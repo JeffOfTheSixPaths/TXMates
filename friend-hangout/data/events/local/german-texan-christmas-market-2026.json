@@ -1,0 +1,26 @@
+{
+  "id": "german-texan-christmas-market-2026",
+  "name": "German-Texan Heritage Society Christmas Market",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "German Free School",
+  "venue": "German Free School of Austin",
+  "address": "",
+  "startDate": "2026-12-05",
+  "endDate": "2026-12-05",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists the German-Texan Heritage Society Christmas Market on December 5, 2026 at the German Free School of Austin.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Market"
+  ],
+  "highlights": [
+    "German Free School of Austin"
+  ]
+}

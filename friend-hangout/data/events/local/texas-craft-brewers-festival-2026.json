@@ -1,0 +1,27 @@
+{
+  "id": "texas-craft-brewers-festival-2026",
+  "name": "Texas Craft Brewers Festival",
+  "bucket": "local",
+  "category": "food",
+  "categoryLabel": "Food & BBQ",
+  "location": "Austin, TX",
+  "neighborhood": "Fiesta Gardens",
+  "venue": "Fiesta Gardens",
+  "address": "",
+  "startDate": "2026-11-14",
+  "endDate": "2026-11-14",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the Texas Craft Brewers Festival on November 14, 2026 at Fiesta Gardens on Lady Bird Lake, with small and independent Texas breweries and local food vendors.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 240,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Beer",
+    "Festival"
+  ],
+  "highlights": [
+    "Fiesta Gardens",
+    "Lady Bird Lake"
+  ]
+}

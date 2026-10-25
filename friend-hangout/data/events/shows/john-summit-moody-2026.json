@@ -1,0 +1,25 @@
+{
+  "id": "john-summit-moody-2026",
+  "name": "John Summit",
+  "bucket": "shows",
+  "category": "music",
+  "categoryLabel": "Live Music",
+  "location": "Austin, TX",
+  "neighborhood": "Moody Center",
+  "venue": "Moody Center",
+  "address": "2001 Robert Dedman Dr, Austin, TX 78712",
+  "startDate": "2026-11-06",
+  "endDate": "2026-11-06",
+  "sourceUrl": "https://moodycenteratx.com/events/",
+  "description": "Moody Center lists John Summit on Friday, November 6, 2026.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Moody Center"
+  ],
+  "highlights": [
+    "Moody Center"
+  ]
+}

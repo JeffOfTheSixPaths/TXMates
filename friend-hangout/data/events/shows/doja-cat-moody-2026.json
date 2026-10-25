@@ -1,0 +1,27 @@
+{
+  "id": "doja-cat-moody-2026",
+  "name": "Doja Cat",
+  "bucket": "shows",
+  "category": "music",
+  "categoryLabel": "Live Music",
+  "location": "Austin, TX",
+  "neighborhood": "Moody Center",
+  "venue": "Moody Center",
+  "address": "2001 Robert Dedman Dr, Austin, TX 78712",
+  "startDate": "2026-11-03",
+  "endDate": "2026-11-03",
+  "sourceUrl": "https://moodycenteratx.com/event/doja-cat-2026/",
+  "description": "Moody Center lists Doja Cat, Tour Ma Vie World Tour, with Latto, on Tuesday, November 3, 2026. The event page lists the show time as 7:30 p.m. CT.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Moody Center"
+  ],
+  "highlights": [
+    "Moody Center",
+    "Latto",
+    "7:30 p.m. CT"
+  ]
+}

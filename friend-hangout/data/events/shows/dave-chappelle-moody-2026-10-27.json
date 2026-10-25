@@ -1,0 +1,27 @@
+{
+  "id": "dave-chappelle-moody-2026-10-27",
+  "name": "Dave Chappelle",
+  "bucket": "shows",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Moody Center",
+  "venue": "Moody Center",
+  "address": "2001 Robert Dedman Dr, Austin, TX 78712",
+  "startDate": "2026-10-27",
+  "endDate": "2026-10-27",
+  "sourceUrl": "https://moodycenteratx.com/events/",
+  "description": "Moody Center lists Dave Chappelle, Karmageddon, on Tuesday, October 27, 2026.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Comedy",
+    "Moody Center"
+  ],
+  "highlights": [
+    "Moody Center",
+    "Karmageddon"
+  ]
+}

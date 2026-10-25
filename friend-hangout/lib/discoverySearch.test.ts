@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { after, describe, it } from 'node:test';
+import type { Activity } from '@/types';
 import type { ActivityDraft } from './activityStore.ts';
 import { getActivityRow, upsertActivity } from './activityStore.ts';
 import { discoverActivities } from './discoverActivities.ts';
@@ -196,6 +197,51 @@ describe('discovery search', () => {
     assert.equal(done?.venue, 'East Austin');
     assert.equal(done?.estimated_cost, 14);
     assert.equal(calls, 2);
+    db.close();
+  });
+
+  it('adds a matching upcoming calendar event when OpenSERP has nothing saved', async () => {
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T18:00:00.000Z');
+    const doja: Activity = {
+      id: 'doja-cat-moody-2026',
+      name: 'Doja Cat',
+      category: 'music',
+      categoryLabel: 'Live Music',
+      location: 'Austin, TX',
+      neighborhood: 'Moody Center',
+      estimatedCostPerPerson: 0,
+      priceListed: false,
+      durationMinutes: 150,
+      description: 'Tour Ma Vie at Moody Center.',
+      highlights: [],
+      rating: 0,
+      reviewCount: 0,
+      popularTimes: '',
+      bestFor: 'Moody Center',
+      tags: ['Shows'],
+      sourceUrl: 'https://moodycenteratx.com/event/doja-cat-2026/',
+      kind: 'event',
+      startDate: '2026-11-03',
+      endDate: '2026-11-03',
+      resultFreshness: 'catalog',
+    };
+    const ended: Activity = { ...doja, id: 'old-show', name: 'Old Show', startDate: '2026-10-01', endDate: '2026-10-02' };
+    const fetchImpl: typeof fetch = async () => new Response('nope', { status: 500 });
+    const found = await discoverActivities(db, {
+      query: 'Doja',
+      location: 'Austin, TX',
+      now,
+      fetchImpl,
+      allowMuse: false,
+      catalogActivities: [doja, ended],
+    });
+    assert.equal(found.source, 'fallback');
+    assert.deepEqual(
+      found.activities.map((activity) => activity.name),
+      ['Doja Cat']
+    );
+    assert.equal(found.activities[0]?.priceListed, false);
     db.close();
   });
 });

@@ -1,0 +1,26 @@
+{
+  "id": "blue-genie-art-bazaar-2026",
+  "name": "Blue Genie Art Bazaar",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Blue Genie Art Bazaar",
+  "venue": "Blue Genie Art Bazaar",
+  "address": "",
+  "startDate": "2026-11-13",
+  "endDate": "2026-12-24",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists the Blue Genie Art Bazaar for November 13–December 24, 2026, with original work from local artists.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Art",
+    "Holiday"
+  ],
+  "highlights": [
+    "Local artists"
+  ]
+}

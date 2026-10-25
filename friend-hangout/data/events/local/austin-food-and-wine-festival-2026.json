@@ -1,0 +1,27 @@
+{
+  "id": "austin-food-and-wine-festival-2026",
+  "name": "Austin Food & Wine Festival",
+  "bucket": "local",
+  "category": "food",
+  "categoryLabel": "Food & BBQ",
+  "location": "Austin, TX",
+  "neighborhood": "Auditorium Shores",
+  "venue": "Auditorium Shores",
+  "address": "",
+  "startDate": "2026-11-06",
+  "endDate": "2026-11-08",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the Austin Food & Wine Festival for November 6–8, 2026 at Auditorium Shores, with chefs, winemakers, and live music.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 180,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Food",
+    "Festival"
+  ],
+  "highlights": [
+    "Auditorium Shores",
+    "Live music"
+  ]
+}
