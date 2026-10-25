@@ -13,6 +13,7 @@ import { INITIAL_FRIENDS } from '@/lib/mockData';
 import { generatePlan, buildItinerary, calculateAvailabilityOverlap, compareCandidateDates } from '@/lib/planner';
 import { Header } from '@/components/Header';
 import { HangoutForm } from '@/components/HangoutForm';
+import { OrganizerAccount } from '@/components/OrganizerAccount';
 import { PlanningViews } from '@/components/PlanningViews';
 import { ActivityDiscovery } from '@/components/ActivityDiscovery';
 import { buildRunnerHours, OverlapRunner } from '@/components/OverlapRunner';
@@ -582,16 +583,33 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
           {activeTab === "planner" ? (
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
               <div className="lg:col-span-5">
-                <HangoutForm
-                  preferences={preferences}
-                  onChange={setPreferences}
-                  onGenerate={handleGenerate}
-                  isGenerating={isGenerating}
-                  nessie={nessie}
-                  squadAdvisory={squadAdvisory}
-                  squadAdvisoryLoading={squadAdvisoryLoading}
-                  onApplySquadPricePoint={handleApplySquadPricePoint}
+                <OrganizerAccount
+                  hangoutId={hangoutId}
+                  onNameChange={(name) => {
+                    const trimmed = name.trim();
+                    if (!trimmed) return;
+                    setPreferences((prev) => {
+                      const [organizer, ...rest] = prev.friends;
+                      if (!organizer || organizer.name === trimmed) return prev;
+                      return {
+                        ...prev,
+                        friends: [{ ...organizer, name: trimmed }, ...rest],
+                      };
+                    });
+                  }}
                 />
+                <div className="mt-6">
+                  <HangoutForm
+                    preferences={preferences}
+                    onChange={setPreferences}
+                    onGenerate={handleGenerate}
+                    isGenerating={isGenerating}
+                    nessie={nessie}
+                    squadAdvisory={squadAdvisory}
+                    squadAdvisoryLoading={squadAdvisoryLoading}
+                    onApplySquadPricePoint={handleApplySquadPricePoint}
+                  />
+                </div>
               </div>
 
               <div id="planning-views-section" className="lg:col-span-7">
