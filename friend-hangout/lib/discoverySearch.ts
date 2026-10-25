@@ -20,7 +20,7 @@ import {
   enrichmentContentCacheable,
   parseMuseEnrichments,
 } from './museEnrich';
-import { discoveryHitRejection } from './activityPolicy';
+import { CITY_NAMES, discoveryHitRejection } from './activityPolicy';
 import {
   openSerpEngineOrder,
   openSerpTimeoutMs,
@@ -70,34 +70,18 @@ const inflight = new Map<string, Promise<void>>();
 
 const GENERIC_SEARCH = 'best things to do with friends venues activities';
 
-const POPULAR_CITIES = [
-  'dallas',
-  'boston',
-  'san antonio',
-  'houston',
-  'chicago',
-  'new york',
-  'nyc',
-  'austin',
-  'seattle',
-  'denver',
-  'miami',
-  'atlanta',
-  'los angeles',
-  'san francisco',
-  'orlando',
-];
-
-const CITY_ACRONYMS = new Set(['nyc', 'dfw', 'la']);
+const CITY_ACRONYMS = new Set(['nyc', 'dfw', 'la', 'satx', 'atx', 'dc', 'sj']);
 
 export function formatCityLabel(city: string): string {
   const trimmed = city.trim();
-  const key = trimmed.toLowerCase();
-  if (CITY_ACRONYMS.has(key)) return key.toUpperCase();
   return trimmed
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (CITY_ACRONYMS.has(lower)) return lower.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
     .join(' ');
 }
 
@@ -112,20 +96,38 @@ export function normalizeLocationLabel(location: string): string {
 }
 
 export function resolveDiscoveryLocation(rawQ: string, locationParam: string): { location: string; query: string } {
-  let location = locationParam;
-  let cleanQ = rawQ;
-  for (const city of POPULAR_CITIES) {
-    const named = new RegExp(`\\b${escapeRegex(city)}\\b`, 'i');
-    if (!named.test(rawQ)) continue;
-    location = formatCityLabel(city);
-    cleanQ = rawQ.replace(new RegExp(`\\b${escapeRegex(city)}\\s*(,\\s*[a-z]{2})?\\b`, 'gi'), ' ');
-    break;
+  let location = locationParam?.trim() || '';
+  let cleanQ = rawQ.trim();
+
+  // 1. Check for trailing "in <city>", "near <city>", "around <city>", "at <city>"
+  const trailingInCity = /\s+(?:in|near|around|at)\s+([a-zA-Z\s.-]+(?:,\s*[a-zA-Z]{2})?)$/i.exec(cleanQ);
+  if (trailingInCity && trailingInCity[1]) {
+    const candidate = trailingInCity[1].trim();
+    if (candidate.length >= 2) {
+      location = candidate;
+      cleanQ = cleanQ.slice(0, trailingInCity.index).trim();
+    }
   }
+
+  // 2. Check known city names inside cleanQ
+  if (!trailingInCity) {
+    for (const entry of CITY_NAMES) {
+      const named = new RegExp(`\\b${escapeRegex(entry.name)}(?:,\\s*([a-z]{2}))?\\b`, 'i');
+      const match = named.exec(cleanQ);
+      if (!match) continue;
+      const stateSuffix = match[1] ? `, ${match[1].toUpperCase()}` : '';
+      location = `${formatCityLabel(entry.name)}${stateSuffix}`;
+      cleanQ = cleanQ.replace(named, ' ');
+      break;
+    }
+  }
+
   cleanQ = cleanQ
-    .replace(/\s+(in|near|around)\s*$/i, ' ')
-    .replace(/^(in|near|around)\s+/i, ' ')
+    .replace(/\s+(in|near|around|at)\s*$/i, ' ')
+    .replace(/^(in|near|around|at)\s+/i, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
+
   return { location: normalizeLocationLabel(location || 'Austin, TX'), query: cleanQ };
 }
 
@@ -164,7 +166,8 @@ export async function refreshDiscoveryQuery(
   const cityLabel = formatCityLabel(cleanCity);
   const hits = await fetchDiscoveryHits(searchText, input.fetchImpl, {
     location,
-    query: searchText,
+    query,
+    requireQueryMatch: Boolean(query),
   });
   if (!hits) return { ok: false, ids: [] };
 
@@ -181,7 +184,8 @@ export async function refreshDiscoveryQuery(
         snippet: hit.snippet || '',
         url,
         location,
-        query: searchText,
+        query,
+        requireQueryMatch: Boolean(query),
       })
     ) {
       continue;

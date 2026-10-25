@@ -36,7 +36,13 @@ export function ActivityDiscovery({
   location,
   onLocationChange,
 }: ActivityDiscoveryProps) {
-  const currentLocation = location || 'Austin, TX';
+  const [localLocation, setLocalLocation] = useState(location || 'Austin, TX');
+  const [prevPropLocation, setPrevPropLocation] = useState(location);
+  if (location !== prevPropLocation) {
+    setPrevPropLocation(location);
+    setLocalLocation(location || 'Austin, TX');
+  }
+  const currentLocation = localLocation || 'Austin, TX';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [budgetFilter, setBudgetFilter] = useState<number | 'all'>('all');
@@ -214,8 +220,13 @@ export function ActivityDiscovery({
           <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" aria-hidden />
           <input
             type="text"
-            value={currentLocation}
-            onChange={(e) => onLocationChange?.(e.target.value)}
+            value={localLocation}
+            onChange={(e) => {
+              const val = e.target.value;
+              setLocalLocation(val);
+              setIsLoading(true);
+              onLocationChange?.(val);
+            }}
             placeholder="Austin, TX"
             aria-label="City or area"
             className="w-full border border-seam bg-sheet py-2.5 pl-10 pr-3 text-base text-ink placeholder:text-ink-soft"

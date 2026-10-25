@@ -130,13 +130,47 @@ const CITIES: CityRecord[] = [
   { id: 'long beach', names: ['long beach'], metro: 'los angeles' },
   { id: 'oakland', names: ['oakland'], metro: 'san francisco' },
   { id: 'brooklyn', names: ['brooklyn'], metro: 'new york' },
+  { id: 'san jose', names: ['san jose', 'sj'] },
+  { id: 'washington', names: ['washington dc', 'washington', 'dc'] },
+  { id: 'pittsburgh', names: ['pittsburgh'] },
+  { id: 'cleveland', names: ['cleveland'] },
+  { id: 'cincinnati', names: ['cincinnati'] },
+  { id: 'st louis', names: ['st louis', 'saint louis', 'st. louis'] },
+  { id: 'honolulu', names: ['honolulu'] },
+  { id: 'buffalo', names: ['buffalo'] },
+  { id: 'richmond', names: ['richmond'] },
+  { id: 'virginia beach', names: ['virginia beach'] },
+  { id: 'tulsa', names: ['tulsa'] },
+  { id: 'mesa', names: ['mesa'], metro: 'phoenix' },
+  { id: 'scottsdale', names: ['scottsdale'], metro: 'phoenix' },
+  { id: 'chandler', names: ['chandler'], metro: 'phoenix' },
+  { id: 'glendale', names: ['glendale'], metro: 'phoenix' },
+  { id: 'tempe', names: ['tempe'], metro: 'phoenix' },
+  { id: 'bakersfield', names: ['bakersfield'] },
+  { id: 'anaheim', names: ['anaheim'], metro: 'los angeles' },
+  { id: 'santa ana', names: ['santa ana'], metro: 'los angeles' },
+  { id: 'irvine', names: ['irvine'], metro: 'los angeles' },
+  { id: 'riverside', names: ['riverside'] },
+  { id: 'st paul', names: ['st paul', 'saint paul', 'st. paul'], metro: 'minneapolis' },
+  { id: 'st petersburg', names: ['st petersburg', 'saint petersburg', 'st. petersburg'], metro: 'tampa' },
+  { id: 'jersey city', names: ['jersey city'], metro: 'new york' },
+  { id: 'newark', names: ['newark'], metro: 'new york' },
+  { id: 'reno', names: ['reno'] },
+  { id: 'boise', names: ['boise'] },
+  { id: 'madison', names: ['madison'] },
+  { id: 'toronto', names: ['toronto'] },
+  { id: 'vancouver', names: ['vancouver'] },
+  { id: 'montreal', names: ['montreal'] },
+  { id: 'london', names: ['london'] },
+  { id: 'paris', names: ['paris'] },
+  { id: 'tokyo', names: ['tokyo'] },
 ];
 
-const CITY_NAMES = CITIES.flatMap((city) => city.names.map((name) => ({ name, id: city.id }))).sort(
+export const CITY_NAMES = CITIES.flatMap((city) => city.names.map((name) => ({ name, id: city.id }))).sort(
   (left, right) => right.name.length - left.name.length
 );
 
-const SHORT_CITY_ALIASES = new Set(['atx', 'dfw', 'nyc', 'satx']);
+const SHORT_CITY_ALIASES = new Set(['atx', 'dfw', 'nyc', 'satx', 'dc', 'sj', 'la']);
 
 const CITY_TOKENS = new Set(
   CITIES.flatMap((city) =>
@@ -173,6 +207,7 @@ const WEAK_QUERY_TOKENS = new Set([
   'near',
   'around',
   'things',
+  'thing',
   'group',
   'fun',
   'good',
@@ -199,6 +234,14 @@ const WEAK_QUERY_TOKENS = new Set([
   'hangouts',
   'plan',
   'plans',
+  'venues',
+  'venue',
+  'area',
+  'areas',
+  'city',
+  'cities',
+  'event',
+  'events',
 ]);
 
 const JUNK_TITLE = /\b(sign[\s-]?in|log[\s-]?in|microsoft account|outlook\.com|live\.com|forgot (your )?password|live ?scores?|livescores?|scoreboard|match centre|match center)\b/i;
@@ -217,7 +260,9 @@ export type DiscoveryHitCheck = {
 
 export function canonicalCity(location: string): string | null {
   const mentioned = citiesMentioned(location);
-  return mentioned[0] || null;
+  if (mentioned[0]) return mentioned[0];
+  const cleaned = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim().toLowerCase();
+  return cleaned && cleaned.length >= 2 ? cleaned : null;
 }
 
 export function cityMetro(cityId: string): string {
@@ -240,6 +285,9 @@ export function citiesMentioned(text: string): string[] {
 export function namesOtherCity(evidence: string, requestedLocation: string): boolean {
   const requested = canonicalCity(requestedLocation);
   if (!requested) return false;
+  const requestedClean = requestedLocation.replace(/\(.*?\)/g, '').split(',')[0]?.trim().toLowerCase();
+  const evidenceLower = evidence.toLowerCase();
+  if (requestedClean && evidenceLower.includes(requestedClean)) return false;
   const mentioned = [...citiesMentioned(evidence), ...hostCityIds(evidence)];
   if (mentioned.length === 0) return false;
   const requestedKey = cityMetro(requested);

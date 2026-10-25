@@ -12,6 +12,7 @@ import {
 import { INITIAL_FRIENDS } from '@/lib/mockData';
 import { generatePlan, buildItinerary, calculateAvailabilityOverlap, compareCandidateDates } from '@/lib/planner';
 import { Header } from '@/components/Header';
+import { formatCityLabel } from '@/lib/discoverySearch';
 import { HangoutForm } from '@/components/HangoutForm';
 import { OrganizerAccount } from '@/components/OrganizerAccount';
 import { PlanningViews } from '@/components/PlanningViews';
@@ -571,7 +572,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
               }`}
             >
               <Compass className="h-4 w-4" aria-hidden />
-              Discover Austin ({shortlist.length} saved)
+              Discover {preferences.location ? formatCityLabel(preferences.location.replace(/\(.*?\)/g, '').split(',')[0] || 'Austin') : 'Austin'} ({shortlist.length} saved)
             </button>
           </div>
         </div>
@@ -676,6 +677,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
               onClearShortlist={handleClearShortlist}
               maxBudget={preferences.maxBudgetPerPerson}
               location={preferences.location}
+              onLocationChange={(loc) => setPreferences((prev) => ({ ...prev, location: loc }))}
             />
           )}
         </div>

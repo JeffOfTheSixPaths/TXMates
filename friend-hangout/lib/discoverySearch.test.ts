@@ -446,4 +446,117 @@ describe('discovery search', () => {
     assert.equal(found.activities[0]?.priceListed, false);
     db.close();
   });
+
+  it('resolves diverse city names and prepositional queries correctly', () => {
+    assert.deepEqual(resolveDiscoveryLocation('coffee in San Diego', 'Austin, TX'), {
+      location: 'San Diego',
+      query: 'coffee',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('tacos in Dallas, TX', 'Austin, TX'), {
+      location: 'Dallas, TX',
+      query: 'tacos',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('pizza near Chicago, IL', ''), {
+      location: 'Chicago, IL',
+      query: 'pizza',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('bars around Nashville', ''), {
+      location: 'Nashville',
+      query: 'bars',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('things to do in London', 'Austin, TX'), {
+      location: 'London',
+      query: 'things to do',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('museums in Washington DC', 'Austin, TX'), {
+      location: 'Washington DC',
+      query: 'museums',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('San Diego, CA', ''), {
+      location: 'San Diego, CA',
+      query: '',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('Seattle', 'Austin, TX'), {
+      location: 'Seattle',
+      query: '',
+    });
+    assert.deepEqual(resolveDiscoveryLocation('tacos', 'Dallas, TX'), {
+      location: 'Dallas, TX',
+      query: 'tacos',
+    });
+  });
+
+  it('searches and accepts OpenSERP results for other cities and generic searches without off-query false rejections', async () => {
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T12:00:00.000Z');
+
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.includes('San%20Diego') || url.includes('San+Diego')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: 'Balboa Park & Museums',
+                url: 'https://sandiego.org/balboa-park',
+                snippet: 'San Diego cultural oasis with gardens and attractions',
+                domain: 'sandiego.org',
+              },
+              {
+                title: 'Sunset Cliffs Natural Park',
+                url: 'https://sandiego.org/sunset-cliffs',
+                snippet: 'Coastal park in Point Loma, San Diego',
+                domain: 'sandiego.org',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.includes('Chicago')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: 'Millennium Park & The Bean',
+                url: 'https://choosechicago.com/millennium-park',
+                snippet: 'Iconic park in the heart of downtown Chicago',
+                domain: 'choosechicago.com',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    };
+
+    // Generic search in San Diego (blank query)
+    const sanDiego = await discoverActivities(db, {
+      query: '',
+      location: 'San Diego, CA',
+      category: 'all',
+      now,
+      fetchImpl,
+      allowMuse: false,
+    });
+    assert.equal(sanDiego.source, 'openserp');
+    assert.equal(sanDiego.isLive, true);
+    assert.ok(sanDiego.activities.some((a) => a.name === 'Balboa Park & Museums'));
+
+    // Chicago query
+    const chicago = await discoverActivities(db, {
+      query: 'park',
+      location: 'Chicago, IL',
+      category: 'all',
+      now,
+      fetchImpl,
+      allowMuse: false,
+    });
+    assert.equal(chicago.source, 'openserp');
+    assert.equal(chicago.isLive, true);
+    assert.ok(chicago.activities.some((a) => a.name === 'Millennium Park & The Bean'));
+
+    db.close();
+  });
 });
