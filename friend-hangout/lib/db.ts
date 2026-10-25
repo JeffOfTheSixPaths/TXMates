@@ -1,7 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
-import { HangoutPreferences, Friend, ActivityCategory } from '@/types';
+import type { HangoutPreferences, Friend, ActivityCategory } from '@/types';
+import { ensureActivityTables } from './activityStore';
+import { ensureItineraryLockColumns } from './itineraryLock';
+import { ensureMuseCache } from './museCache';
+import { ensureMuseUsage } from './museUsage';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DB_DIR)) {
@@ -12,13 +16,9 @@ const DB_PATH = path.join(DB_DIR, 'txmates.db');
 
 let dbInstance: DatabaseSync | null = null;
 
-export function getDb(): DatabaseSync {
-  if (!dbInstance) {
-    dbInstance = new DatabaseSync(DB_PATH);
-    dbInstance.exec('PRAGMA journal_mode = WAL;');
-
-    // Initialize SQL tables
-    dbInstance.exec(`
+export function initHangoutDb(db: DatabaseSync) {
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec(`
       CREATE TABLE IF NOT EXISTS hangouts (
         id TEXT PRIMARY KEY,
         group_name TEXT NOT NULL,
@@ -48,6 +48,16 @@ export function getDb(): DatabaseSync {
         UNIQUE (hangout_id, friend_id)
       );
     `);
+  ensureActivityTables(db);
+  ensureMuseCache(db);
+  ensureMuseUsage(db);
+  ensureItineraryLockColumns(db);
+}
+
+export function getDb(): DatabaseSync {
+  if (!dbInstance) {
+    dbInstance = new DatabaseSync(DB_PATH);
+    initHangoutDb(dbInstance);
   }
   return dbInstance;
 }
@@ -78,8 +88,7 @@ interface FriendRow {
   submitted_at: string | null;
 }
 
-export function saveHangoutToDb(hangout: HangoutPreferences): string {
-  const db = getDb();
+export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = getDb()): string {
   const id = hangout.id || 'txmates-demo';
 
   const upsertHangout = db.prepare(`

@@ -1,36 +1,146 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FAF7F2;
-  --foreground: #0F172A;
+  --background: #e7f0df;
+  --foreground: #241c16;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: #241c16;
+  --color-ink-soft: #4a3f36;
+  --color-pine: #e7f0df;
+  --color-sheet: #f4f7ef;
+  --color-paper: #f3eadb;
+  --color-paper-dim: #e4d3bc;
+  --color-cola: #241c16;
+  --color-sun: #f2c14e;
+  --color-sun-soft: #f6e7b0;
+  --color-tomato: #c7382f;
+  --color-leaf: #1f6b45;
+  --color-seam: #c9d4c0;
+  --font-sans: var(--font-familjen), "Familjen Grotesk", sans-serif;
 }
 
 body {
-  background-color: #FAF7F2;
-  color: #0F172A;
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  color-scheme: light;
 }
 
-/* Custom desktop application scrollbars */
+::selection {
+  background: #f2c14e;
+  color: #241c16;
+}
+
+:focus-visible {
+  outline: 2px solid #241c16;
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input[type="range"] {
+  accent-color: #c7382f;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #F1ECE2;
+  background: #e7f0df;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 9999px;
+  background: #8d9b84;
+  border: 2px solid #e7f0df;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+
+:root {
+  --avail-empty: var(--color-sheet, #f4f7ef);
+  --avail-full: var(--color-leaf, #1f6b45);
+  --avail-ink: var(--color-ink, #241c16);
+  --avail-ink-strong: var(--color-sheet, #f4f7ef);
+  /* 68% leaf on sheet is about 3:1, so an empty cell still shows its edge. */
+  --avail-line: color-mix(in srgb, var(--color-leaf, #1f6b45) 68%, var(--color-sheet, #f4f7ef));
+  /* Partial fills stop at 73% leaf so dark text stays at least 4.5:1. */
+  --avail-scale: 73%;
+}
+
+.avail-heat {
+  background-color: color-mix(
+    in srgb,
+    var(--avail-full) calc(var(--avail, 0) * var(--avail-scale)),
+    var(--avail-empty)
+  );
+  color: var(--avail-ink);
+  border-color: var(--avail-line);
+}
+
+.avail-heat[data-strong="true"] {
+  background-color: var(--avail-full);
+  color: var(--avail-ink-strong);
+}
+
+.avail-board {
+  color: var(--avail-ink);
+}
+
+.runner-cell {
+  transition: background-color 220ms var(--ease-out-expo), color 220ms var(--ease-out-expo);
+}
+
+@media (prefers-color-scheme: dark) {
+  .avail-board {
+    --avail-empty: color-mix(in srgb, var(--color-sheet, #f4f7ef) 12%, var(--color-ink, #241c16));
+    --avail-full: var(--color-leaf, #1f6b45);
+    --avail-ink: var(--color-sheet, #f4f7ef);
+    --avail-ink-strong: var(--color-sheet, #f4f7ef);
+    --avail-line: color-mix(in srgb, var(--color-sheet, #f4f7ef) 46%, var(--color-leaf, #1f6b45));
+    --avail-scale: 100%;
+    background: var(--color-ink, #241c16);
+    padding: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runner-cell {
+    transition: none;
+  }
+}
+
+.itinerary-dialog {
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  overflow: hidden;
+  border: 1px solid #c9d4c0;
+  background: #f3eadb;
+  color: #241c16;
+  padding: 0;
+  width: min(42rem, calc(100% - 2rem));
+  max-height: min(44rem, calc(100% - 2rem));
+}
+
+.itinerary-dialog::backdrop {
+  background: color-mix(in srgb, #241c16 48%, transparent);
 }
