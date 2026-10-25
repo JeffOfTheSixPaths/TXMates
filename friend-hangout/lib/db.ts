@@ -6,6 +6,7 @@ import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
 import { ensureMuseUsage } from './museUsage';
+import { ensureUserItemVotesTable } from './userVotes';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DB_DIR)) {
@@ -70,6 +71,7 @@ export function initHangoutDb(db: DatabaseSync) {
   ensureMuseUsage(db);
   ensureItineraryLockColumns(db);
   ensureFriendCalendarColumns(db);
+  ensureUserItemVotesTable(db);
 }
 
 export function getDb(): DatabaseSync {

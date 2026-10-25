@@ -54,6 +54,8 @@ export default function Home() {
   const [squadAdvisory, setSquadAdvisory] = useState<SquadPricePointResponse | null>(null);
   const [squadAdvisoryLoading, setSquadAdvisoryLoading] = useState(true);
   const [scheduleRevision, setScheduleRevision] = useState(0);
+  const [downvotedIds, setDownvotedIds] = useState<Set<string>>(new Set());
+  const [downvotedNames, setDownvotedNames] = useState<Set<string>>(new Set());
   const budgetTouched = useRef(false);
   const [liveAiData, setLiveAiData] = useState<
     Record<
@@ -152,6 +154,37 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [preferences]);
 
+  // Load saved item votes for the group's members so recommendations avoid downvoted places
+  useEffect(() => {
+    let cancelled = false;
+    const userIds = preferences.friends.map((f) => f.id).join(',');
+    const customerIds = preferences.friends
+      .map((f) => f.nessieCustomerId)
+      .filter(Boolean)
+      .join(',');
+
+    fetch(
+      `/api/votes/item?userIds=${encodeURIComponent(userIds)}&customerIds=${encodeURIComponent(customerIds)}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: { downvotedActivityIds?: string[]; downvotedActivityNames?: string[] } | null) => {
+          if (cancelled || !data) return;
+          if (Array.isArray(data.downvotedActivityIds)) {
+            setDownvotedIds(new Set(data.downvotedActivityIds));
+          }
+          if (Array.isArray(data.downvotedActivityNames)) {
+            setDownvotedNames(new Set(data.downvotedActivityNames));
+          }
+        }
+      )
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferences.friends]);
+
   // Poll for When2Meet submissions from friends
   useEffect(() => {
     const pollInterval = setInterval(async () => {
@@ -209,9 +242,18 @@ export default function Home() {
   }, [preferences.id, preferences.friends]);
 
   // Fetch live Meta Muse Spark AI synthesis
-  const fetchLiveMusePlan = async (view: PlanningViewType, isCancelled = () => false) => {
+  const fetchLiveMusePlan = async (
+    view: PlanningViewType,
+    isCancelled = () => false,
+    overrideDownvotes?: { downvotedIds?: Set<string>; downvotedNames?: Set<string> }
+  ) => {
     try {
-      const basePlan = generatePlan(preferences, view);
+      const activeDownvotedIds = overrideDownvotes?.downvotedIds || downvotedIds;
+      const activeDownvotedNames = overrideDownvotes?.downvotedNames || downvotedNames;
+      const basePlan = generatePlan(preferences, view, nessie?.estimate, {
+        downvotedIds: activeDownvotedIds,
+        downvotedNames: activeDownvotedNames,
+      });
       const res = await fetch('/api/muse/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,6 +262,8 @@ export default function Home() {
           viewType: view,
           activities: basePlan.activities,
           nessie: nessie?.estimate || null,
+          downvotedActivityIds: Array.from(activeDownvotedIds),
+          downvotedActivityNames: Array.from(activeDownvotedNames),
         }),
       });
 
@@ -271,17 +315,27 @@ export default function Home() {
 
   // Compute current plan deterministically, augmented with live Meta Muse Spark AI synthesis
   const currentPlan = useMemo(() => {
-    const base = generatePlan(preferences, activeView, nessie?.estimate);
+    const base = generatePlan(preferences, activeView, nessie?.estimate, {
+      downvotedIds,
+      downvotedNames,
+    });
     const live = liveAiData[activeView];
     if (live && (live.isLive || live.limited || live.filled)) {
-      const activities = live.activities?.length ? live.activities : base.activities;
+      const liveActivities = live.activities?.length ? live.activities : base.activities;
+      const isDownvoted = (act: Activity) =>
+        downvotedIds.has(act.id) ||
+        (act.name && downvotedNames.has(act.name.toLowerCase().trim()));
+
+      const hasDownvoted = liveActivities.some(isDownvoted);
+      const activities = hasDownvoted ? base.activities : liveActivities;
+
       const totalCostPerPerson = activities.reduce((sum, activity) => sum + activity.estimatedCostPerPerson, 0);
       const friendCount = preferences.friends.length || preferences.friendCount || 1;
       const museMoney = [live.budgetExplanation, ...(live.budgetTips || [])].filter(Boolean).join(' ');
       return {
         ...base,
         activities,
-        itinerary: live.activities?.length ? buildItinerary(activities, preferences) : base.itinerary,
+        itinerary: activities.length ? buildItinerary(activities, preferences) : base.itinerary,
         totalCostPerPerson,
         totalGroupCost: totalCostPerPerson * friendCount,
         aiRationale: live.aiRationale || base.aiRationale,
@@ -298,7 +352,7 @@ export default function Home() {
       };
     }
     return base;
-  }, [preferences, activeView, liveAiData, nessie]);
+  }, [preferences, activeView, liveAiData, nessie, downvotedIds, downvotedNames]);
 
   // Handle plan regeneration with live Meta Muse Spark synthesis
   const handleGenerate = () => {
@@ -504,6 +558,12 @@ export default function Home() {
                 musePending={musePending}
                 scheduleRevision={scheduleRevision}
                 squadAdvisory={squadAdvisory}
+                downvotedIds={downvotedIds}
+                downvotedNames={downvotedNames}
+                onVoteRecorded={(data) => {
+                  setDownvotedIds(data.downvotedIds);
+                  setDownvotedNames(data.downvotedNames);
+                }}
               />
             </div>
           </div>

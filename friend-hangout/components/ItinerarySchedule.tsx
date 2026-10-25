@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, MapPin, Check } from "lucide-react";
-import type { Activity, Friend, HangoutPreferences, ItineraryItem } from "@/types";
+import { ChevronDown, ChevronUp, GripVertical, MapPin, Check, ThumbsUp, ThumbsDown, Heart } from "lucide-react";
+import type { Activity, Friend, HangoutPreferences, ItineraryItem, ItemVoteReaction } from "@/types";
 import { formatActivityPrice, formatAge, formatEventSpan } from "@/lib/activityFormat";
 import { availabilityStrong, coverageCount, parseSlotLabel } from "@/lib/availabilityHeat";
 import { indexFromPointer, reorderItinerary } from "@/lib/itineraryEdit";
@@ -17,6 +17,12 @@ interface ItineraryScheduleProps {
   editsReady: boolean;
   onReorder: (from: number, to: number) => void;
   onSwap: (index: number, activity: Activity) => void;
+  itemVotes?: Record<string, Record<string, ItemVoteReaction>>;
+  downvotedIds?: Set<string>;
+  downvotedNames?: Set<string>;
+  activeVoterId?: string;
+  onSelectActiveVoter?: (friendId: string) => void;
+  onVoteItem?: (activity: Activity, friend: Friend, vote: ItemVoteReaction | null) => void;
 }
 
 export function ItinerarySchedule({
@@ -27,6 +33,12 @@ export function ItinerarySchedule({
   editsReady,
   onReorder,
   onSwap,
+  itemVotes = {},
+  downvotedIds,
+  downvotedNames,
+  activeVoterId,
+  onSelectActiveVoter,
+  onVoteItem,
 }: ItineraryScheduleProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const latestRef = useRef(items);
@@ -35,6 +47,8 @@ export function ItinerarySchedule({
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [reorderNote, setReorderNote] = useState<string | null>(null);
   const canEdit = editsReady && !locked;
+
+  const currentVoter = friends.find((f) => f.id === activeVoterId) || friends[0];
 
   useEffect(() => {
     if (!dragRef.current) latestRef.current = items;
@@ -93,13 +107,61 @@ export function ItinerarySchedule({
   return (
     <div>
       <p id="itinerary-help" className="sr-only">
-        Drag a handle to reorder stops. Arrow buttons move a stop up or down. Activating a stop opens other places and events in this city.
+        Drag a handle to reorder stops. Arrow buttons move a stop up or down. Vote on individual stops with thumbs up, heart, or thumbs down. Disliked stops are saved to your account and shown less often.
       </p>
+
+      {/* Voter selector bar */}
+      {friends.length > 0 && currentVoter && (
+        <div className="mb-4 border border-seam bg-sheet p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                Voting on individual stops as:
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {friends.map((friend) => {
+                  const isActive = currentVoter.id === friend.id;
+                  return (
+                    <button
+                      key={friend.id}
+                      type="button"
+                      onClick={() => onSelectActiveVoter?.(friend.id)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold ${
+                        isActive
+                          ? "bg-ink text-paper"
+                          : "border border-seam bg-paper text-ink hover:bg-sheet"
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${friend.avatarColor}`} />
+                      {friend.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="max-w-xs text-xs text-ink-soft">
+              Votes save to user accounts. Disliking (👎) an item tells TXMates to show this place less often in future plans.
+            </p>
+          </div>
+        </div>
+      )}
+
       <ol ref={listRef} className="mt-4 border-t border-seam" aria-describedby="itinerary-help">
         {items.map((item, index) => {
           const slot = parseSlotLabel(item.timeSlot);
           const coverage = slot ? coverageCount(friends, slot.start, slot.end) : null;
           const dragging = draggingIndex === index;
+
+          const stopVotes = itemVotes[item.activity.id] || {};
+          const activeVote = currentVoter ? stopVotes[currentVoter.id] || null : null;
+
+          const downvoters = friends.filter((f) => stopVotes[f.id] === "down");
+          const isDownvotedGlobally = Boolean(
+            downvotedIds?.has(item.activity.id) ||
+              (item.activity.name && downvotedNames?.has(item.activity.name.toLowerCase().trim()))
+          );
+          const hasDownvotes = downvoters.length > 0 || isDownvotedGlobally;
+
           return (
             <li
               key={item.activity.id}
@@ -161,16 +223,7 @@ export function ItinerarySchedule({
                       {coverage.word} · {coverage.count}/{coverage.total} free
                     </p>
                   )}
-                  <button
-                    type="button"
-                    className="mt-2 w-full text-left"
-                    aria-disabled={!canEdit}
-                    tabIndex={canEdit ? 0 : -1}
-                    onClick={() => {
-                      if (!canEdit) return;
-                      setSwapIndex(index);
-                    }}
-                  >
+                  <div className="mt-2 w-full text-left">
                     <h3 className="text-xl font-semibold text-ink">{item.activity.name}</h3>
                     {(item.activity.kind || item.activity.resultFreshness) && (
                       <p className="mt-1 text-sm text-ink">
@@ -221,8 +274,149 @@ export function ItinerarySchedule({
                         ? `${coverage.word}, ${coverage.count} of ${coverage.total} free for this stop.`
                         : `${item.availableFriendsCount} friends free for this stop.`}
                     </p>
-                    {canEdit && <p className="mt-2 text-sm font-semibold text-ink">Swap this stop</p>}
-                  </button>
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setSwapIndex(index)}
+                        className="mt-2 inline-flex items-center text-sm font-semibold text-ink underline underline-offset-4 hover:text-ink-soft"
+                      >
+                        Swap this stop
+                      </button>
+                    )}
+
+                    {/* Item-level Voting Section */}
+                    <div className="mt-4 border-t border-seam pt-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                          Vote on this stop
+                        </span>
+                        {hasDownvotes && (
+                          <span className="inline-flex items-center gap-1 border border-tomato/30 bg-tomato/10 px-2 py-0.5 text-xs font-semibold text-tomato">
+                            <ThumbsDown className="h-3 w-3" aria-hidden />
+                            Disliked by {downvoters.map((d) => d.name.split(" ")[0]).join(", ") || "member"} · Saved to account (shows less)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Active voter voting controls */}
+                      {currentVoter && (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${currentVoter.avatarColor}`}
+                            >
+                              {currentVoter.name.charAt(0)}
+                            </span>
+                            <span className="text-sm font-medium text-ink">
+                              {currentVoter.name}:
+                            </span>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1.5"
+                            role="group"
+                            aria-label={`Vote on ${item.activity.name} as ${currentVoter.name}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onVoteItem?.(
+                                  item.activity,
+                                  currentVoter,
+                                  activeVote === "up" ? null : "up"
+                                )
+                              }
+                              aria-pressed={activeVote === "up"}
+                              aria-label={`Vote in for ${item.activity.name}`}
+                              title="I'm in for this stop"
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
+                                activeVote === "up"
+                                  ? "bg-ink text-paper"
+                                  : "border border-seam bg-paper text-ink hover:bg-sheet"
+                              }`}
+                            >
+                              <ThumbsUp className="h-3.5 w-3.5" aria-hidden />
+                              In
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onVoteItem?.(
+                                  item.activity,
+                                  currentVoter,
+                                  activeVote === "love" ? null : "love"
+                                )
+                              }
+                              aria-pressed={activeVote === "love"}
+                              aria-label={`Love ${item.activity.name}`}
+                              title="Love this stop!"
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
+                                activeVote === "love"
+                                  ? "bg-tomato text-white"
+                                  : "border border-seam bg-paper text-ink hover:bg-sheet"
+                              }`}
+                            >
+                              <Heart className="h-3.5 w-3.5" aria-hidden />
+                              Love
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onVoteItem?.(
+                                  item.activity,
+                                  currentVoter,
+                                  activeVote === "down" ? null : "down"
+                                )
+                              }
+                              aria-pressed={activeVote === "down"}
+                              aria-label={`Dislike ${item.activity.name} (show less in future)`}
+                              title="Dislike this place - saves to your account so future recommendations show it less"
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
+                                activeVote === "down"
+                                  ? "border border-tomato bg-tomato text-white"
+                                  : "border border-seam bg-paper text-ink hover:bg-tomato/10 hover:text-tomato"
+                              }`}
+                            >
+                              <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
+                              Dislike (show less)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Squad breakdown if any votes exist */}
+                      {Object.keys(stopVotes).length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-seam/60 pt-2">
+                          <span className="text-xs text-ink-soft">Squad votes:</span>
+                          {friends.map((friend) => {
+                            const vote = stopVotes[friend.id];
+                            if (!vote) return null;
+                            return (
+                              <button
+                                key={friend.id}
+                                type="button"
+                                onClick={() => onSelectActiveVoter?.(friend.id)}
+                                title={`Click to switch voter to ${friend.name}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border ${
+                                  vote === "down"
+                                    ? "border-tomato/40 bg-tomato/10 text-tomato font-semibold"
+                                    : vote === "love"
+                                      ? "border-sun/60 bg-sun-soft text-ink font-semibold"
+                                      : "border-seam bg-sheet text-ink"
+                                }`}
+                              >
+                                <span>{friend.name.split(" ")[0]}:</span>
+                                {vote === "love" ? "❤️ Love" : vote === "up" ? "👍 In" : "👎 Dislike"}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </li>
@@ -237,6 +431,8 @@ export function ItinerarySchedule({
           preferences={preferences}
           itinerary={items}
           index={swapIndex}
+          downvotedIds={downvotedIds}
+          downvotedNames={downvotedNames}
           onClose={() => setSwapIndex(null)}
           onPick={(activity) => {
             onSwap(swapIndex, activity);

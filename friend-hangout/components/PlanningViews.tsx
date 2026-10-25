@@ -11,7 +11,16 @@ import {
   TrendingDown,
   Zap,
 } from "lucide-react";
-import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity, SquadPricePointResponse } from "@/types";
+import {
+  HangoutPlan,
+  PlanningViewType,
+  HangoutPreferences,
+  ItineraryItem,
+  Activity,
+  SquadPricePointResponse,
+  Friend,
+  ItemVoteReaction,
+} from "@/types";
 import { formatAge } from "@/lib/activityFormat";
 import { buildItinerary } from "@/lib/planner";
 import { editItinerary, spendSummary } from "@/lib/itineraryEdit";
@@ -27,6 +36,9 @@ interface PlanningViewsProps {
   musePending?: boolean;
   scheduleRevision?: number;
   squadAdvisory?: SquadPricePointResponse | null;
+  downvotedIds?: Set<string>;
+  downvotedNames?: Set<string>;
+  onVoteRecorded?: (data: { downvotedIds: Set<string>; downvotedNames: Set<string> }) => void;
 }
 
 const VIEWS: {
@@ -63,6 +75,9 @@ export function PlanningViews({
   musePending = false,
   scheduleRevision = 0,
   squadAdvisory,
+  downvotedIds,
+  downvotedNames,
+  onVoteRecorded,
 }: PlanningViewsProps) {
   const friends = preferences.friends;
   const groupName = preferences.groupName;
@@ -71,6 +86,8 @@ export function PlanningViews({
     "f-2": "love",
     "f-3": "up",
   });
+  const [itemVotes, setItemVotes] = useState<Record<string, Record<string, ItemVoteReaction>>>({});
+  const [activeVoterId, setActiveVoterId] = useState<string>(friends[0]?.id || "f-1");
   const [isLocked, setIsLocked] = useState(false);
   const [override, setOverride] = useState<ItineraryItem[] | null>(null);
   const [itineraryLocked, setItineraryLocked] = useState(false);
@@ -123,6 +140,95 @@ export function PlanningViews({
       cancelled = true;
     };
   }, [preferences.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const userIds = friends.map((f) => f.id).join(",");
+    const customerIds = friends
+      .map((f) => f.nessieCustomerId)
+      .filter(Boolean)
+      .join(",");
+    fetch(
+      `/api/votes/item?userIds=${encodeURIComponent(userIds)}&customerIds=${encodeURIComponent(customerIds)}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            votes?: Array<{ activityId: string; userId: string; vote: ItemVoteReaction }>;
+            downvotedActivityIds?: string[];
+            downvotedActivityNames?: string[];
+          } | null
+        ) => {
+          if (cancelled || !data) return;
+          const map: Record<string, Record<string, ItemVoteReaction>> = {};
+          if (Array.isArray(data.votes)) {
+            for (const v of data.votes) {
+              if (!map[v.activityId]) map[v.activityId] = {};
+              map[v.activityId][v.userId] = v.vote;
+            }
+          }
+          setItemVotes(map);
+          if (Array.isArray(data.downvotedActivityIds)) {
+            onVoteRecorded?.({
+              downvotedIds: new Set(data.downvotedActivityIds),
+              downvotedNames: new Set(data.downvotedActivityNames || []),
+            });
+          }
+        }
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [friends, onVoteRecorded]);
+
+  const handleVoteItem = async (
+    activity: Activity,
+    friend: Friend,
+    vote: ItemVoteReaction | null
+  ) => {
+    setItemVotes((prev) => {
+      const next = { ...prev };
+      const forAct = { ...(next[activity.id] || {}) };
+      if (!vote) {
+        delete forAct[friend.id];
+      } else {
+        forAct[friend.id] = vote;
+      }
+      next[activity.id] = forAct;
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/votes/item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: friend.id,
+          customerId: friend.nessieCustomerId,
+          friendName: friend.name,
+          activityId: activity.id,
+          activityName: activity.name,
+          vote,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.message) {
+          setScheduleNotice(data.message);
+        }
+        if (Array.isArray(data.downvotedActivityIds)) {
+          onVoteRecorded?.({
+            downvotedIds: new Set(data.downvotedActivityIds),
+            downvotedNames: new Set(data.downvotedActivityNames || []),
+          });
+        }
+      }
+    } catch {
+      // Silently handle error
+    }
+  };
 
   async function persistItinerary(nextLocked: boolean, snapshot: ItineraryItem[]) {
     setSaving(true);
@@ -420,6 +526,12 @@ export function PlanningViews({
           editsReady={editsReady}
           onReorder={handleReorder}
           onSwap={handleSwap}
+          itemVotes={itemVotes}
+          downvotedIds={downvotedIds}
+          downvotedNames={downvotedNames}
+          activeVoterId={activeVoterId}
+          onSelectActiveVoter={setActiveVoterId}
+          onVoteItem={handleVoteItem}
         />
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button

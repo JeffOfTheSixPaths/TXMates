@@ -165,6 +165,8 @@ export function filterSwapCandidates(input: {
   today: string;
   query?: string;
   category?: ActivityCategory | 'all';
+  downvotedIds?: Set<string>;
+  downvotedNames?: Set<string>;
 }): SwapFilterResult {
   const hidden = { expired: 0, budget: 0, availability: 0, alreadyOnItinerary: 0 };
   const scheduled = new Set(input.itinerary.map((item) => item.activity.id));
@@ -202,5 +204,22 @@ export function filterSwapCandidates(input: {
     }
     activities.push(activity);
   }
+
+  if (input.downvotedIds || input.downvotedNames) {
+    activities.sort((left, right) => {
+      const downLeft =
+        (input.downvotedIds?.has(left.id) ||
+          (left.name && input.downvotedNames?.has(left.name.toLowerCase().trim())))
+          ? 1
+          : 0;
+      const downRight =
+        (input.downvotedIds?.has(right.id) ||
+          (right.name && input.downvotedNames?.has(right.name.toLowerCase().trim())))
+          ? 1
+          : 0;
+      return downLeft - downRight;
+    });
+  }
+
   return { activities, hidden };
 }
