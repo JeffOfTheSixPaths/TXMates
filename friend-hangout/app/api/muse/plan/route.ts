@@ -27,6 +27,7 @@ import { calculateAvailabilityOverlap, filterActivities } from '@/lib/planner';
 import { activityPolicy } from '@/lib/activityPolicy';
 import { getActivitiesForLocation } from '@/lib/mockData';
 import { museCallAllowed, museCallsToday, museMaxCallsPerDay } from '@/lib/museUsage';
+import { getDownvotedActivities, isActivityDownvoted } from '@/lib/userVotes';
 import type { HangoutBudgetEstimate } from '@/lib/nessieBudget';
 
 const MUSE_MODEL = process.env.MUSE_MODEL || 'muse-spark-1.3';
@@ -36,6 +37,8 @@ interface PlanSynthesisRequestBody {
   viewType: PlanningViewType;
   activities?: Activity[];
   nessie?: HangoutBudgetEstimate | null;
+  downvotedActivityIds?: string[];
+  downvotedActivityNames?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -84,13 +87,38 @@ export async function POST(req: NextRequest) {
       pool.push(...getActivitiesForLocation(location));
     }
 
+    const userIds = (preferences.friends || []).map((friend) => friend.id).filter(Boolean);
+    const customerIds = (preferences.friends || [])
+      .map((friend) => friend.nessieCustomerId)
+      .filter((id): id is string => Boolean(id));
+    const downvoted = getDownvotedActivities(db, { userIds, customerIds });
+    if (Array.isArray(body.downvotedActivityIds)) {
+      for (const id of body.downvotedActivityIds) downvoted.ids.add(id);
+    }
+    if (Array.isArray(body.downvotedActivityNames)) {
+      for (const name of body.downvotedActivityNames) downvoted.names.add(name.toLowerCase().trim());
+    }
+
+    const isDownvoted = (act: Activity): boolean => {
+      return isActivityDownvoted(act, downvoted.ids, downvoted.names);
+    };
+
     let filtered = filterActivities(
       pool,
       preferences.maxBudgetPerPerson > 0 ? preferences.maxBudgetPerPerson : undefined,
-      preferences.selectedInterests?.length ? preferences.selectedInterests : undefined
+      preferences.selectedInterests?.length ? preferences.selectedInterests : undefined,
+      undefined,
+      { downvotedIds: downvoted.ids, downvotedNames: downvoted.names }
     );
     if (filtered.length < 3) filtered = pool;
-    const candidates = rankPlanCandidates(uniquePlanCandidates(filtered.length > 0 ? filtered : pool));
+
+    const nonDownvoted = filtered.filter((act) => !isDownvoted(act));
+    const finalFiltered = nonDownvoted.length >= 3 ? nonDownvoted : filtered;
+
+    const candidates = rankPlanCandidates(
+      uniquePlanCandidates(finalFiltered.length > 0 ? finalFiltered : pool),
+      isDownvoted
+    );
 
     if (candidates.length === 0) {
       return NextResponse.json({ error: 'No candidate activities available' }, { status: 400 });
@@ -318,8 +346,15 @@ Select up to 3 specific venues or events from the Candidate Activities and gener
   }
 }
 
-function rankPlanCandidates(activities: Activity[]): Activity[] {
-  return [...activities].sort((left, right) => Number(isListicleListing(left.name)) - Number(isListicleListing(right.name)));
+function rankPlanCandidates(activities: Activity[], isDownvoted?: (act: Activity) => boolean): Activity[] {
+  return [...activities].sort((left, right) => {
+    if (isDownvoted) {
+      const downLeft = isDownvoted(left) ? 1 : 0;
+      const downRight = isDownvoted(right) ? 1 : 0;
+      if (downLeft !== downRight) return downLeft - downRight;
+    }
+    return Number(isListicleListing(left.name)) - Number(isListicleListing(right.name));
+  });
 }
 
 function withSavedEnrichment(activities: Activity[], db: ReturnType<typeof getDb>): Activity[] {

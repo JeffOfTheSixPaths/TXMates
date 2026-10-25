@@ -154,3 +154,24 @@ export interface VoteRecord {
   reaction: 'up' | 'love' | 'down';
   timestamp: string;
 }
+
+export type ItemVoteReaction = 'up' | 'love' | 'down';
+
+export interface UserItemVote {
+  id: string;
+  userId: string;
+  customerId?: string;
+  friendName: string;
+  activityId: string;
+  activityName: string;
+  vote: ItemVoteReaction;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ItemVotesResponse {
+  votes: UserItemVote[];
+  downvotedActivityIds: string[];
+  downvotedActivityNames: string[];
+}
+

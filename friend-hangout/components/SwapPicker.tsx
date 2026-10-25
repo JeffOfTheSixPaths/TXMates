@@ -17,9 +17,19 @@ interface SwapPickerProps {
   index: number;
   onPick: (activity: Activity) => void;
   onClose: () => void;
+  downvotedIds?: Set<string>;
+  downvotedNames?: Set<string>;
 }
 
-export function SwapPicker({ preferences, itinerary, index, onPick, onClose }: SwapPickerProps) {
+export function SwapPicker({
+  preferences,
+  itinerary,
+  index,
+  onPick,
+  onClose,
+  downvotedIds,
+  downvotedNames,
+}: SwapPickerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -91,8 +101,10 @@ export function SwapPicker({ preferences, itinerary, index, onPick, onClose }: S
         today: civilDate(new Date()),
         query,
         category,
+        downvotedIds,
+        downvotedNames,
       }),
-    [pool, itinerary, index, preferences, query, category]
+    [pool, itinerary, index, preferences, query, category, downvotedIds, downvotedNames]
   );
 
   const hiddenBits = [

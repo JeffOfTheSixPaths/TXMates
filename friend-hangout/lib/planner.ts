@@ -8,6 +8,7 @@ import type {
   Friend,
 } from '@/types';
 import { getActivitiesForLocation } from './mockData';
+import { isActivityDownvoted } from './userVotes';
 import type { HangoutBudgetEstimate } from './nessieBudget';
 
 /**
@@ -74,6 +75,12 @@ export function calculateAvailabilityOverlap(friends: Friend[]): {
   };
 }
 
+export interface PlannerVoteOptions {
+  downvotedIds?: Set<string>;
+  downvotedNames?: Set<string>;
+  upvotedIds?: Set<string>;
+}
+
 /**
  * Filter activities by budget and interests
  */
@@ -81,9 +88,18 @@ export function filterActivities(
   activities: Activity[],
   maxBudget?: number,
   interests?: ActivityCategory[],
-  searchQuery?: string
+  searchQuery?: string,
+  voteOptions?: PlannerVoteOptions
 ): Activity[] {
   return activities.filter((act) => {
+    // Vote filter: deprioritize downvoted activities if enough non-downvoted activities exist
+    if (voteOptions && isActivityDownvoted(act, voteOptions.downvotedIds, voteOptions.downvotedNames)) {
+      const nonDownvotedCount = activities.filter(
+        (a) => !isActivityDownvoted(a, voteOptions.downvotedIds, voteOptions.downvotedNames)
+      ).length;
+      if (nonDownvotedCount >= 3) return false;
+    }
+
     // Budget filter
     if (maxBudget !== undefined && act.estimatedCostPerPerson > maxBudget) {
       return false;
@@ -198,13 +214,22 @@ export function buildItinerary(
 export function generatePlan(
   preferences: HangoutPreferences,
   viewType: PlanningViewType,
-  nessie?: Pick<HangoutBudgetEstimate, 'source' | 'reasoning'> | null
+  nessie?: Pick<HangoutBudgetEstimate, 'source' | 'reasoning'> | null,
+  voteOptions?: PlannerVoteOptions
 ): HangoutPlan {
   const { maxBudgetPerPerson, selectedInterests, friendCount } = preferences;
 
   const location = preferences.location || 'Austin, TX';
   const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
   const candidateActivities = [...getActivitiesForLocation(preferences.location)];
+
+  const isDownvoted = (act: Activity): boolean => {
+    return isActivityDownvoted(act, voteOptions?.downvotedIds, voteOptions?.downvotedNames);
+  };
+
+  const isUpvoted = (act: Activity): boolean => {
+    return Boolean(voteOptions?.upvotedIds?.has(act.id));
+  };
 
   // Helper score for interest match
   const getInterestScore = (act: Activity): number => {
@@ -221,22 +246,33 @@ export function generatePlan(
     title = `Wallet-Friendly ${cleanCity} Adventure`;
     subtitle = 'The lowest prices that still fit the cap.';
     
-    // Sort strictly by cost ascending, giving a small preference to interest match
+    // Sort strictly by downvote penalty first, then cost ascending, then interest match
     candidateActivities.sort((a, b) => {
+      const downA = isDownvoted(a) ? 1 : 0;
+      const downB = isDownvoted(b) ? 1 : 0;
+      if (downA !== downB) return downA - downB;
+
       const costDiff = a.estimatedCostPerPerson - b.estimatedCostPerPerson;
       if (costDiff !== 0) return costDiff;
       return getInterestScore(b) - getInterestScore(a);
     });
 
+    const nonDownvoted = candidateActivities.filter((a) => !isDownvoted(a));
+    const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : candidateActivities;
+
     // Pick 3 diverse cheap activities
-    chosenActivities = candidateActivities.slice(0, 3);
+    chosenActivities = poolForSelection.slice(0, 3);
     aiRationale = `Meta Muse Spark curated 3 ultra-affordable ${cleanCity} favorites with a blended average cost well under $${maxBudgetPerPerson}/person. Keeps your crew energized without financial stress.`;
   } else if (viewType === 'interests') {
     title = 'Interests & Passion Deep-Dive';
     subtitle = 'Tailored strictly around your group’s chosen categories and vibe preferences.';
 
-    // Sort by highest interest match first, then rating
+    // Sort by downvote penalty first, then highest interest match, then rating
     candidateActivities.sort((a, b) => {
+      const downA = isDownvoted(a) ? 1 : 0;
+      const downB = isDownvoted(b) ? 1 : 0;
+      if (downA !== downB) return downA - downB;
+
       const scoreA = getInterestScore(a);
       const scoreB = getInterestScore(b);
       if (scoreB !== scoreA) return scoreB - scoreA;
@@ -248,15 +284,23 @@ export function generatePlan(
       (a) => a.estimatedCostPerPerson <= maxBudgetPerPerson * 0.7
     );
 
-    chosenActivities = (affordableCandidates.length >= 3 ? affordableCandidates : candidateActivities).slice(0, 3);
+    const activePool = affordableCandidates.length >= 3 ? affordableCandidates : candidateActivities;
+    const nonDownvoted = activePool.filter((a) => !isDownvoted(a));
+    const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : activePool;
+
+    chosenActivities = poolForSelection.slice(0, 3);
     aiRationale = `Meta Muse Spark prioritized top-rated venues matching your selected interests (${selectedInterests.join(', ') || 'all categories'}). Highly rated spots designed to guarantee maximum engagement.`;
   } else {
     // 'overall' - Best balanced match
     title = `The Prime ${cleanCity} Match`;
     subtitle = 'The ideal equilibrium of your group’s interests, budget comfort, and schedule flow.';
 
-    // Composite scoring: Interest (40%) + Budget Fit (30%) + Rating (30%)
+    // Composite scoring: Downvote Penalty (-1000) + Interest (40%) + Budget Fit (30%) + Rating (30%) + Upvote Bonus (+20)
     candidateActivities.sort((a, b) => {
+      const downA = isDownvoted(a) ? 1 : 0;
+      const downB = isDownvoted(b) ? 1 : 0;
+      if (downA !== downB) return downA - downB;
+
       const intScoreA = getInterestScore(a) * 15;
       const intScoreB = getInterestScore(b) * 15;
 
@@ -266,26 +310,31 @@ export function generatePlan(
       const ratingScoreA = a.rating * 10;
       const ratingScoreB = b.rating * 10;
 
-      const totalA = intScoreA + budgetFitA + ratingScoreA;
-      const totalB = intScoreB + budgetFitB + ratingScoreB;
+      const voteBonusA = isUpvoted(a) ? 20 : 0;
+      const voteBonusB = isUpvoted(b) ? 20 : 0;
+
+      const totalA = intScoreA + budgetFitA + ratingScoreA + voteBonusA;
+      const totalB = intScoreB + budgetFitB + ratingScoreB + voteBonusB;
 
       return totalB - totalA;
     });
 
-    // Select 3 activities ensuring category variety if possible
+    // Select 3 activities ensuring category variety if possible, preferring non-downvoted
     const selected: Activity[] = [];
     const usedCategories = new Set<string>();
+    const nonDownvoted = candidateActivities.filter((a) => !isDownvoted(a));
+    const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : candidateActivities;
 
-    for (const act of candidateActivities) {
+    for (const act of poolForSelection) {
       if (selected.length >= 3) break;
-      if (!usedCategories.has(act.category) || selected.length >= candidateActivities.length - 1) {
+      if (!usedCategories.has(act.category) || selected.length >= poolForSelection.length - 1) {
         selected.push(act);
         usedCategories.add(act.category);
       }
     }
 
     if (selected.length < 3) {
-      chosenActivities = candidateActivities.slice(0, 3);
+      chosenActivities = poolForSelection.slice(0, 3);
     } else {
       chosenActivities = selected;
     }
