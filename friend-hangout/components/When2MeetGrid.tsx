@@ -24,6 +24,7 @@ interface When2MeetGridProps {
   editable?: boolean;
   onSlotsChange?: (slots: TimeSlot[]) => void;
   title?: string;
+  resetToken?: number;
 }
 
 export function When2MeetGrid({
@@ -33,6 +34,7 @@ export function When2MeetGrid({
   editable = false,
   onSlotsChange,
   title = "Group Availability Heatmap (When2Meet)",
+  resetToken = 0,
 }: When2MeetGridProps) {
   // Compute group matrix
   const matrix = useMemo(() => {
@@ -49,6 +51,11 @@ export function When2MeetGrid({
 
   // Editable personal grid - uses draft state while editing, falls back to derived userSlots grid
   const [draftGrid, setDraftGrid] = useState<Record<string, Record<number, boolean>> | null>(null);
+  const [appliedToken, setAppliedToken] = useState(resetToken);
+  if (resetToken !== appliedToken) {
+    setAppliedToken(resetToken);
+    setDraftGrid(null);
+  }
 
   const personalGrid = useMemo(() => {
     return draftGrid ?? slotsToHourGrid(userSlots, dates);

@@ -45,6 +45,9 @@ interface HangoutFormProps {
   squadAdvisory?: SquadPricePointResponse | null;
   squadAdvisoryLoading?: boolean;
   onApplySquadPricePoint?: (target: number) => void;
+  plannerStep?: 'who' | 'when' | 'budget';
+  onPlannerStep?: (step: 'who' | 'when' | 'budget') => void;
+  plain?: boolean;
 }
 
 export function HangoutForm({
@@ -59,6 +62,9 @@ export function HangoutForm({
   squadAdvisory,
   squadAdvisoryLoading,
   onApplySquadPricePoint,
+  plannerStep,
+  onPlannerStep,
+  plain = false,
 }: HangoutFormProps) {
   const [showAdvancedFriends, setShowAdvancedFriends] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -331,14 +337,17 @@ export function HangoutForm({
     e.preventDefault();
     if (!preferences.groupName.trim()) {
       setValidationError('Please enter a group name for your hangout.');
+      onPlannerStep?.('who');
       return;
     }
     if (preferences.maxBudgetPerPerson <= 0) {
       setValidationError('Please set a maximum budget greater than $0.');
+      onPlannerStep?.('budget');
       return;
     }
     if (preferences.friends.length === 0) {
       setValidationError('Please add at least one friend to the plan.');
+      onPlannerStep?.('who');
       return;
     }
 
@@ -358,17 +367,23 @@ export function HangoutForm({
   const fieldClass =
     "w-full border border-seam bg-pine px-3 py-2.5 text-base text-ink placeholder:text-ink-soft";
 
+  const showWho = !plannerStep || plannerStep === "who";
+  const showWhen = !plannerStep || plannerStep === "when";
+  const showBudget = !plannerStep || plannerStep === "budget";
+
   return (
     <>
-      <form onSubmit={handleSubmit} className="bg-sheet px-5 py-6 sm:px-7 sm:py-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-3xl font-semibold text-ink">The constraints</h2>
-            <p className="mt-2 text-base text-ink-soft">
-              {preferences.friends.length} mates. {budgetTier}.
-            </p>
+      <form onSubmit={handleSubmit} className={plain ? "" : "bg-sheet px-5 py-6 sm:px-7 sm:py-8"}>
+        {!plannerStep && (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-3xl font-semibold text-ink">The constraints</h2>
+              <p className="mt-2 text-base text-ink-soft">
+                {preferences.friends.length} mates. {budgetTier}.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {validationError && (
           <p role="alert" className="mt-4 flex items-start gap-2 text-base font-semibold text-tomato">
@@ -377,7 +392,8 @@ export function HangoutForm({
           </p>
         )}
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {showWho && (
+        <div className={`${plannerStep === "who" ? "mt-6" : "mt-8"} grid grid-cols-1 gap-4 sm:grid-cols-2`}>
           <label className="block text-base font-semibold text-ink">
             Group name
             <input
@@ -417,8 +433,11 @@ export function HangoutForm({
             </div>
           </div>
         </div>
+        )}
 
-        <div className="mt-8">
+        {showWhen && (
+        <>
+        <div className={plannerStep === "when" ? "" : "mt-8"}>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Calendar className="h-4 w-4" aria-hidden />
@@ -485,45 +504,62 @@ export function HangoutForm({
             </div>
           </fieldset>
         </div>
+        </>
+        )}
 
-        <section className="mt-10">
+        {(showWho || showWhen) && (
+        <section className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-semibold text-ink">Free windows</h3>
-              <p className="mt-1 text-base text-ink-soft">
-                {overlap.allFriendsAvailable
-                  ? `All free ${overlap.commonStart}–${overlap.commonEnd}.`
-                  : overlap.availableFriendCount > 0
-                    ? `${overlap.availableFriendCount} of ${preferences.friends.length} overlap, ${overlap.commonStart}–${overlap.commonEnd}.`
-                    : `No shared window yet.`}
-              </p>
+              <h3 className="text-xl font-semibold text-ink">
+                {showWho && !showWhen ? "Mates" : "Free windows"}
+              </h3>
+              {showWhen ? (
+                <p className="mt-1 text-base text-ink-soft">
+                  {overlap.allFriendsAvailable
+                    ? `All free ${overlap.commonStart}–${overlap.commonEnd}.`
+                    : overlap.availableFriendCount > 0
+                      ? `${overlap.availableFriendCount} of ${preferences.friends.length} overlap, ${overlap.commonStart}–${overlap.commonEnd}.`
+                      : `No shared window yet.`}
+                </p>
+              ) : (
+                <p className="mt-1 text-base text-ink-soft">
+                  {preferences.friends.length} on this hangout.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowInviteModal(true)}
-                className="inline-flex min-h-11 items-center gap-1.5 bg-ink px-3 text-base font-semibold text-paper"
-              >
-                <Share2 className="h-4 w-4" aria-hidden />
-                Send links
-              </button>
-              <button
-                type="button"
-                onClick={handleAddFriend}
-                className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-semibold text-ink"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Add mate
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAdvancedFriends(!showAdvancedFriends)}
-                aria-expanded={showAdvancedFriends}
-                className="inline-flex min-h-11 items-center gap-1 px-2 text-base font-semibold text-ink"
-              >
-                {showAdvancedFriends ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                {showAdvancedFriends ? "Hide hours" : "Edit hours"}
-              </button>
+              {showWho && (
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(true)}
+                  className="inline-flex min-h-11 items-center gap-1.5 bg-ink px-3 text-base font-semibold text-paper"
+                >
+                  <Share2 className="h-4 w-4" aria-hidden />
+                  Send links
+                </button>
+              )}
+              {showWho && (
+                <button
+                  type="button"
+                  onClick={handleAddFriend}
+                  className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-semibold text-ink"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add mate
+                </button>
+              )}
+              {showWhen && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFriends(!showAdvancedFriends)}
+                  aria-expanded={showAdvancedFriends}
+                  className="inline-flex min-h-11 items-center gap-1 px-2 text-base font-semibold text-ink"
+                >
+                  {showAdvancedFriends ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showAdvancedFriends ? "Hide hours" : "Edit hours"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -534,7 +570,7 @@ export function HangoutForm({
             </p>
           )}
 
-          {showAdvancedFriends && (
+          {showWhen && showAdvancedFriends && (
             <div className="mt-4">
               <button
                 type="button"
@@ -557,6 +593,7 @@ export function HangoutForm({
             </div>
           )}
 
+          {(showWho || showAdvancedFriends) && (
           <ul className="mt-2">
               {preferences.friends.map((friend, idx) => (
                 <li key={friend.id} className="py-3">
@@ -593,7 +630,7 @@ export function HangoutForm({
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {showAdvancedFriends && (
+                      {showWhen && showAdvancedFriends && (
                       <button
                         type="button"
                         onClick={() => handleSyncSingleFriendCalendar(friend)}
@@ -651,7 +688,7 @@ export function HangoutForm({
                       )}
                     </div>
                   </div>
-                  {showAdvancedFriends && friend.availabilitySlots.map((slot) => (
+                  {showWhen && showAdvancedFriends && friend.availabilitySlots.map((slot) => (
                     <div key={slot.id} className="mt-3 grid grid-cols-2 gap-2">
                       <label className="text-sm font-semibold text-ink-soft">
                         From
@@ -676,9 +713,31 @@ export function HangoutForm({
                 </li>
               ))}
             </ul>
+          )}
+          {plannerStep === "who" && onPlannerStep && (
+            <button
+              type="button"
+              onClick={() => onPlannerStep("when")}
+              className="mt-8 flex min-h-11 w-full items-center justify-center bg-ink px-6 text-base font-semibold text-paper"
+            >
+              Next: When
+            </button>
+          )}
+          {plannerStep === "when" && onPlannerStep && (
+            <button
+              type="button"
+              onClick={() => onPlannerStep("budget")}
+              className="mt-8 flex min-h-11 w-full items-center justify-center bg-ink px-6 text-base font-semibold text-paper"
+            >
+              Next: Budget and vibes
+            </button>
+          )}
         </section>
+        )}
 
-        <section className="mt-10">
+        {showBudget && (
+        <>
+        <section className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <label className="text-xl font-semibold text-ink" htmlFor="budget-amount">
               Max per person
@@ -814,6 +873,8 @@ export function HangoutForm({
             Uses the overlap, the cap, and your interests.
           </p>
         </div>
+        </>
+        )}
       </form>
 
       {showInviteModal && (
@@ -914,6 +975,14 @@ export function HangoutForm({
   );
 }
 
+function publicBudgetCopy(text: string) {
+  if (/NESSIE_API_KEY|MUSE_API_KEY|\.env|npm run/i.test(text)) {
+    console.warn(text);
+    return 'Estimate';
+  }
+  return text;
+}
+
 function NessieBudgetNote({
   nessie,
   nessieLoading,
@@ -934,23 +1003,26 @@ function NessieBudgetNote({
     nessie?.source === 'nessie' &&
     typeof suggested === 'number' &&
     suggested !== currentBudget;
+  const rawStatus = nessieLoading
+    ? null
+    : nessie?.source === 'nessie'
+      ? `${nessie.estimate.museEnriched ? 'Muse. ' : ''}${nessie.estimate.reasoning}`
+      : nessie?.notice || 'Estimate only. Nessie did not answer, so this cap is not a bank balance.';
+  const statusCopy = rawStatus == null ? null : publicBudgetCopy(rawStatus);
 
   return (
     <div className="mt-3 space-y-3">
-      {nessie?.reason === 'no-customers' ? (
-        <p role="status" className="bg-sun px-3 py-3 text-base text-ink">
-          <span className="font-semibold">No Nessie customers on this key. </span>
-          {nessie.notice ||
-            'The cap stays an estimate until a customer exists. From the friend-hangout folder, npm run nessie:seed adds a demo customer, checking account, purchases, and monthly and annual bills.'}
+      {nessieLoading ? (
+        <p role="status" className="text-base text-ink">
+          Reading accounts, then asking Muse to explain the cap…
+        </p>
+      ) : statusCopy === 'Estimate' ? (
+        <p role="status" className="text-sm font-semibold text-ink-soft">
+          Estimate
         </p>
       ) : (
         <p role="status" className="text-base text-ink">
-          {nessieLoading
-            ? 'Reading accounts, then asking Muse to explain the cap…'
-            : nessie?.source === 'nessie'
-              ? `${nessie.estimate.museEnriched ? 'Muse. ' : ''}${nessie.estimate.reasoning}`
-              : nessie?.notice ||
-                'Estimate only. Nessie did not answer, so this cap is not a bank balance.'}
+          {statusCopy}
         </p>
       )}
       {nessie?.source === 'nessie' && (

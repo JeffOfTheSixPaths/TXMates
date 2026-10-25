@@ -56,6 +56,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
   const [musePending, setMusePending] = useState(true);
   const [shortlist, setShortlist] = useState<Activity[]>([]);
   const [activeTab, setActiveTab] = useState<'planner' | 'discovery'>('planner');
+  const [plannerStep, setPlannerStep] = useState<'who' | 'when' | 'budget'>('who');
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
   const [nessie, setNessie] = useState<NessieBudgetResponse | null>(null);
   const [, setNessieLoading] = useState(true);
@@ -580,24 +581,54 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
           {activeTab === "planner" ? (
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
-              <div className="lg:col-span-5">
-                <OrganizerAccount
-                  hangoutId={hangoutId}
-                  onNameChange={(name) => {
-                    const trimmed = name.trim();
-                    if (!trimmed) return;
-                    setPreferences((prev) => {
-                      const [organizer, ...rest] = prev.friends;
-                      if (!organizer || organizer.name === trimmed) return prev;
-                      return {
-                        ...prev,
-                        friends: [{ ...organizer, name: trimmed }, ...rest],
-                      };
-                    });
-                  }}
-                />
-                <div className="mt-10">
+              <div className="bg-sheet lg:col-span-5">
+                <div role="tablist" aria-label="Plan setup" className="flex border-b border-seam">
+                  {(
+                    [
+                      ['who', "Who's coming"],
+                      ['when', 'When'],
+                      ['budget', 'Budget & vibes'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={plannerStep === id}
+                      onClick={() => setPlannerStep(id)}
+                      className={`min-h-11 flex-1 px-2 text-sm font-semibold sm:text-base ${
+                        plannerStep === id
+                          ? 'border-b-2 border-ink text-ink'
+                          : 'border-b-2 border-transparent text-ink-soft'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="px-5 py-6 sm:px-7 sm:py-8">
+                  {plannerStep === 'who' && (
+                    <OrganizerAccount
+                      plain
+                      hangoutId={hangoutId}
+                      onNameChange={(name) => {
+                        const trimmed = name.trim();
+                        if (!trimmed) return;
+                        setPreferences((prev) => {
+                          const [organizer, ...rest] = prev.friends;
+                          if (!organizer || organizer.name === trimmed) return prev;
+                          return {
+                            ...prev,
+                            friends: [{ ...organizer, name: trimmed }, ...rest],
+                          };
+                        });
+                      }}
+                    />
+                  )}
                   <HangoutForm
+                    plain
+                    plannerStep={plannerStep}
+                    onPlannerStep={setPlannerStep}
                     preferences={preferences}
                     onChange={setPreferences}
                     onGenerate={handleGenerate}

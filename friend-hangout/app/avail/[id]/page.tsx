@@ -38,6 +38,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   const [activeDateTab, setActiveDateTab] = useState<string>('');
   const [dateSlots, setDateSlots] = useState<Record<string, { startTime: string; endTime: string }>>({});
   const [startTime, setStartTime] = useState<string>('14:30');
+  const [gridEpoch, setGridEpoch] = useState(0);
   const [endTime, setEndTime] = useState<string>('20:30');
   const [budgetPref, setBudgetPref] = useState<number>(45);
   const [selectedInterests, setSelectedInterests] = useState<ActivityCategory[]>([
@@ -85,6 +86,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
     const activeSlot = slotsMap[currentActiveDate] || defaultSlot;
     setStartTime(activeSlot.startTime);
     setEndTime(activeSlot.endTime);
+    setGridEpoch((epoch) => epoch + 1);
   };
 
   // Fetch hangout from SQLite API and initialize friend values
@@ -188,6 +190,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
       ...prev,
       [activeDate]: { startTime: start, endTime: end },
     }));
+    setGridEpoch((epoch) => epoch + 1);
   };
 
   const handleSwitchDateTab = (newDate: string) => {
@@ -201,6 +204,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
     const targetSlot = currentMap[newDate] || { startTime, endTime };
     setStartTime(targetSlot.startTime);
     setEndTime(targetSlot.endTime);
+    setGridEpoch((epoch) => epoch + 1);
   };
 
   const handleApplyToAllDates = () => {
@@ -351,7 +355,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-10">
+            <form onSubmit={handleSubmit} className="space-y-10 max-sm:pb-24">
               <fieldset>
                 <legend className="text-xl font-semibold text-ink">Who are you?</legend>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -396,7 +400,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                   When are you free? {formatFriendlyDate(activeDate)}
                 </legend>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Sync a calendar, or pick a preset.
+                  Pick a preset or paint the hours. The green cells are what you submit.
                 </p>
 
                 {candidateDatesList.length > 1 && (
@@ -467,6 +471,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                       handleEndTimeChange(newEnd);
                       setCalendarSynced(true);
                       setCalendarSyncDetails(syncDetails);
+                      setGridEpoch((epoch) => epoch + 1);
                     }}
                   />
                 </div>
@@ -510,28 +515,6 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     );
                   })}
                 </div>
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="text-base font-semibold text-ink">
-                    Free starting at
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => handleStartTimeChange(e.target.value)}
-                      required
-                      className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-semibold text-ink"
-                    />
-                  </label>
-                  <label className="text-base font-semibold text-ink">
-                    Free until
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => handleEndTimeChange(e.target.value)}
-                      required
-                      className="mt-1 w-full border border-seam bg-pine px-3 py-2.5 text-base font-semibold text-ink"
-                    />
-                  </label>
-                </div>
               </fieldset>
 
               <div className="pt-2">
@@ -556,6 +539,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     }
                   }}
                   title="When2Meet"
+                  resetToken={gridEpoch}
                 />
               </div>
 
@@ -567,10 +551,10 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 />
               </div>
 
-              <fieldset>
-                <legend className="text-xl font-semibold text-ink">Budget and interests</legend>
-                <p className="mt-1 text-base text-ink-soft">
-                  Your comfort level, not a second bank read.
+              <details>
+                <summary className="cursor-pointer text-xl font-semibold text-ink">Budget and interests</summary>
+                <p className="mt-3 text-base text-ink-soft">
+                  The organizer already set a cap. Change yours only if you want to.
                 </p>
                 <label className="mt-4 block text-base text-ink">
                   <span className="flex items-baseline justify-between gap-3">
@@ -606,16 +590,18 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     );
                   })}
                 </div>
-              </fieldset>
+              </details>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex min-h-11 w-full items-center justify-center gap-2 bg-tomato px-6 text-base font-semibold text-white disabled:bg-seam disabled:text-ink-soft"
-              >
-                <CheckCircle2 className="h-4 w-4" aria-hidden />
-                {isSubmitting ? "Saving hours…" : `Submit ${startTime} to ${endTime}`}
-              </button>
+              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-seam bg-sheet px-4 py-3 max-sm:!mt-0 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 bg-tomato px-6 text-base font-semibold text-white disabled:bg-seam disabled:text-ink-soft"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  {isSubmitting ? "Saving hours…" : `Submit ${startTime} to ${endTime}`}
+                </button>
+              </div>
             </form>
           )}
         </div>

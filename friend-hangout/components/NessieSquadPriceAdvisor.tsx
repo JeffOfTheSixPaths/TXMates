@@ -68,7 +68,6 @@ export function NessieSquadPriceAdvisor({
               </span>
             )}
           </p>
-          <p className="mt-2 max-w-prose text-base text-ink">{advisory.rationale}</p>
         </div>
         <div className="shrink-0">
           {isCurrentlyTarget ? (
@@ -93,9 +92,6 @@ export function NessieSquadPriceAdvisor({
           )}
         </div>
       </div>
-      {advisory.coordinationTip && (
-        <p className="mt-3 max-w-prose text-base text-ink-soft">{advisory.coordinationTip}</p>
-      )}
       <p className="mt-3 flex items-start gap-1.5 text-sm text-ink-soft">
         <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-leaf" aria-hidden />
         <span>
