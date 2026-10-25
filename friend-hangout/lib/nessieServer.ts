@@ -9,9 +9,18 @@ import {
   simulatedHangoutBudget,
   toAccountSummary,
 } from './nessieBudget';
-import type { NessieAccountInput, NessieBudgetResponse, NessieCustomerOption } from './nessieBudget';
+import type {
+  NessieAccountInput,
+  NessieBudgetResponse,
+  NessieCustomerOption,
+  NessieReadReason,
+} from './nessieBudget';
 
-const DEFAULT_BASE_URL = 'http://api.nessieisreal.com';
+const DEFAULT_BASE_URL = 'https://api.nessieisreal.com';
+
+export function nessieBaseUrl(): string {
+  return (process.env.NESSIE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '');
+}
 const REQUEST_TIMEOUT_MS = 8000;
 
 type LoadedCustomer = {
@@ -31,14 +40,20 @@ export async function loadNessieBudget(options: {
   if (!key) {
     return simulatedResponse(
       friendCount,
-      'Estimate only. NESSIE_API_KEY is not set, so this cap is not a bank balance.'
+      'Estimate only. NESSIE_API_KEY is not set, so this cap is not a bank balance.',
+      'missing-key'
     );
   }
 
   try {
     const loaded = await loadCustomer(key, options.customerId);
     if (!loaded.selected) {
-      return simulatedResponse(friendCount, 'Estimate only. Nessie returned no customers for this key.');
+      return simulatedResponse(
+        friendCount,
+        'Nessie connected, but this key has no customers yet. The cap stays an estimate. From the friend-hangout folder, npm run nessie:seed adds a demo customer, a checking account, purchases, and monthly and annual bills.',
+        'no-customers',
+        loaded
+      );
     }
 
     const accountPayload = await nessieGet(`/customers/${loaded.selected.id}/accounts`, key);
@@ -55,7 +70,7 @@ export async function loadNessieBudget(options: {
     );
 
     if (notice && accounts.length === 0) {
-      return simulatedResponse(friendCount, notice, loaded);
+      return simulatedResponse(friendCount, notice, 'account-mismatch', loaded);
     }
 
     const purchases: unknown[] = [];
@@ -89,11 +104,13 @@ export async function loadNessieBudget(options: {
       selectedAccountId,
       accountLocked,
       notice,
+      reason: null,
     };
   } catch {
     return simulatedResponse(
       friendCount,
-      'Estimate only. Nessie did not answer, so this cap is not a bank balance.'
+      'Estimate only. Nessie did not answer, so this cap is not a bank balance.',
+      'unreachable'
     );
   }
 }
@@ -167,7 +184,7 @@ function selectAccounts(
 }
 
 async function nessieGet(path: string, key: string): Promise<unknown> {
-  const base = (process.env.NESSIE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '');
+  const base = nessieBaseUrl();
   const url = new URL(`${base}${path}`);
   url.searchParams.set('key', key);
   const response = await fetch(url, {
@@ -184,6 +201,7 @@ async function nessieGet(path: string, key: string): Promise<unknown> {
 function simulatedResponse(
   friendCount: number,
   notice: string,
+  reason: NessieReadReason,
   loaded?: LoadedCustomer
 ): NessieBudgetResponse {
   return {
@@ -196,6 +214,7 @@ function simulatedResponse(
     selectedAccountId: null,
     accountLocked: false,
     notice,
+    reason,
   };
 }
 

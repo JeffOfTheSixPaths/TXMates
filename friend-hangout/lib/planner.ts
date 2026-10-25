@@ -128,7 +128,7 @@ function addMinutesToTime(startHour24: number, startMinute: number, minutesToAdd
 /**
  * Builds chronological itinerary items for selected activities
  */
-function createItinerary(
+export function buildItinerary(
   activities: Activity[],
   preferences: HangoutPreferences
 ): ItineraryItem[] {
@@ -338,7 +338,7 @@ export function generatePlan(
   else if (viewType === 'interests') matchScore = 96;
 
   // Build the proposed itinerary
-  const itinerary = createItinerary(chosenActivities, preferences);
+  const itinerary = buildItinerary(chosenActivities, preferences);
 
   return {
     id: `plan-${viewType}-txmates`,

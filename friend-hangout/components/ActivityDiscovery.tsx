@@ -12,7 +12,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Activity, ActivityCategory } from '@/types';
-import { ACTIVITY_CATEGORIES, MOCK_ACTIVITIES } from '@/lib/mockData';
+import { formatAge, formatEventSpan } from '@/lib/activityFormat';
+import { ACTIVITY_CATEGORIES } from '@/lib/mockData';
 import { CATEGORY_ICONS } from './categoryIcons';
 import { EmptyState } from './EmptyState';
 
@@ -36,13 +37,17 @@ export function ActivityDiscovery({
   const [budgetFilter, setBudgetFilter] = useState<number | 'all'>('all');
   const [sortBy, setSortBy] = useState<'recommended' | 'price-low' | 'rating'>('recommended');
 
-  const [activities, setActivities] = useState<Activity[]>(MOCK_ACTIVITIES);
-  const [isLiveOpenSerp, setIsLiveOpenSerp] = useState(false);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [source, setSource] = useState<'openserp' | 'saved' | 'fallback' | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let polls = 0;
 
     async function loadActivities() {
       try {
@@ -55,13 +60,25 @@ export function ActivityDiscovery({
           const data = await res.json();
           if (Array.isArray(data.activities)) {
             setActivities(data.activities);
-            setIsLiveOpenSerp(Boolean(data.isLive));
+            setSource(data.source === 'openserp' || data.source === 'saved' ? data.source : 'fallback');
+            setNotice(typeof data.notice === 'string' ? data.notice : null);
+            setRefreshing(Boolean(data.refreshing));
+          }
+          if (data.refreshing && polls < 3 && !cancelled) {
+            polls += 1;
+            pollTimer = setTimeout(() => {
+              if (!cancelled) void loadActivities();
+            }, 6000);
           }
         } else if (!cancelled) {
-          setIsLiveOpenSerp(false);
+          setSource('fallback');
+          setRefreshing(false);
         }
       } catch {
-        if (!cancelled) setIsLiveOpenSerp(false);
+        if (!cancelled) {
+          setSource('fallback');
+          setRefreshing(false);
+        }
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -70,10 +87,13 @@ export function ActivityDiscovery({
       }
     }
 
-    const timer = setTimeout(loadActivities, 300);
+    const timer = setTimeout(() => {
+      void loadActivities();
+    }, 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      if (pollTimer) clearTimeout(pollTimer);
     };
   }, [searchQuery, selectedCategory]);
 
@@ -120,7 +140,7 @@ export function ActivityDiscovery({
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-ink">Austin spots</h2>
           <p className="mt-1 max-w-prose text-base text-ink-soft">
-            Search waits on a local OpenSERP server before this list is treated as final.
+            Saved spots show up immediately. OpenSERP runs again when this search is more than a few hours old.
           </p>
         </div>
       </div>
@@ -128,16 +148,22 @@ export function ActivityDiscovery({
       {isLoading ? (
         <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
           {hasLoaded
-            ? 'Checking OpenSERP again. The list below is the last answer, not a new one yet.'
-            : 'Asking OpenSERP at 127.0.0.1:7000. A local search can take several seconds. The demo catalog stays hidden until it answers or the request times out.'}
-        </p>
-      ) : isLiveOpenSerp ? (
-        <p role="status" className="mt-4 bg-leaf px-4 py-3 text-base text-white">
-          Live OpenSERP results. Prices and hours are still estimates. Open the source link before you commit.
+            ? 'Checking saved spots again. The list below is the last answer, not a new one yet.'
+            : 'Checking saved spots. A new OpenSERP search can take about 15 seconds.'}
         </p>
       ) : (
-        <p role="status" className="mt-4 bg-sun px-4 py-3 text-base text-ink">
-          Demo catalog, not a live search. OpenSERP was offline or slower than the timeout, so these are the curated Austin places.
+        <p
+          role="status"
+          className={`mt-4 px-4 py-3 text-base ${source === 'openserp' ? 'bg-leaf text-white' : source === 'saved' ? 'border border-seam bg-sheet text-ink' : 'bg-sun text-ink'}`}
+        >
+          {notice ||
+            (source === 'openserp'
+              ? 'Live OpenSERP results, saved on this machine. Prices and hours are still estimates.'
+              : source === 'saved'
+                ? refreshing
+                  ? 'Saved spots are on screen. OpenSERP is refreshing this search in the background.'
+                  : 'Saved spots from this machine.'
+                : 'Demo catalog. OpenSERP did not answer and nothing is saved for this search yet.')}
         </p>
       )}
 
@@ -261,6 +287,19 @@ export function ActivityDiscovery({
             {filteredActivities.map((act) => {
               const isShortlisted = shortlistedIds.has(act.id);
               const isOverBudget = act.estimatedCostPerPerson > maxBudget;
+              const eventWhen = formatEventSpan(act.startDate, act.endDate);
+              const freshness =
+                act.resultFreshness === 'live'
+                  ? 'Live'
+                  : act.resultFreshness === 'saved'
+                    ? `Saved, last seen ${formatAge(act.lastSeen) || 'earlier'}`
+                    : 'Demo';
+              const kindLabel =
+                act.kind === 'event'
+                  ? `Event${eventWhen ? `, ${eventWhen}` : ', date not listed'}`
+                  : act.kind === 'place'
+                    ? 'Place'
+                    : '';
               return (
                 <li
                   key={act.id}
@@ -275,6 +314,11 @@ export function ActivityDiscovery({
                     </span>
                   </div>
                   <h3 className="mt-2 text-xl font-semibold text-ink">{act.name}</h3>
+                  <p className="mt-1 text-sm text-ink">
+                    {freshness}
+                    {kindLabel ? ` · ${kindLabel}` : ''}
+                    {act.museEnriched ? ' · Muse' : ''}
+                  </p>
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-soft">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>{act.neighborhood}</span>

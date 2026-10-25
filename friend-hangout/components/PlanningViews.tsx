@@ -12,6 +12,9 @@ import {
   Zap,
 } from "lucide-react";
 import { HangoutPlan, PlanningViewType, Friend } from "@/types";
+import { formatAge, formatEventSpan } from "@/lib/activityFormat";
+import { availabilityStrong, coverageCount, parseSlotLabel } from "@/lib/availabilityHeat";
+import { heatStyle } from "@/components/OverlapRunner";
 
 interface PlanningViewsProps {
   currentPlan: HangoutPlan;
@@ -19,6 +22,7 @@ interface PlanningViewsProps {
   onSelectView: (view: PlanningViewType) => void;
   friends: Friend[];
   groupName: string;
+  musePending?: boolean;
 }
 
 const VIEWS: {
@@ -53,6 +57,7 @@ export function PlanningViews({
   onSelectView,
   friends,
   groupName,
+  musePending = false,
 }: PlanningViewsProps) {
   const [votes, setVotes] = useState<Record<string, "up" | "love" | null>>({
     "f-1": "up",
@@ -111,15 +116,29 @@ export function PlanningViews({
         </div>
       </div>
 
-      <section>
+      <section aria-busy={musePending}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-2xl font-semibold text-ink">{currentPlan.title}</h2>
-          <p className="text-sm text-ink-soft">
-            {currentPlan.isLiveAiGenerated
-              ? `Muse Spark live, ${currentPlan.aiModelUsed || "muse-spark-1.3"}`
-              : "Muse Spark simulated"}
+          <p className="text-sm text-ink-soft" role="status">
+            {musePending
+              ? "Muse is writing. A live call can take about 25 seconds."
+              : currentPlan.isLiveAiGenerated
+                ? currentPlan.museFromCache
+                  ? `Saved Muse plan${currentPlan.museCachedAt ? `, ${formatAge(currentPlan.museCachedAt) || "earlier"}` : ""}`
+                  : `Muse Spark live, ${currentPlan.aiModelUsed || "muse-spark-1.3"}`
+                : "Muse Spark simulated"}
           </p>
         </div>
+        {musePending && (
+          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
+            Muse is writing this plan. A live call can take about 25 seconds. This plan stays on screen until it answers.
+          </p>
+        )}
+        {currentPlan.museLimited && !musePending && (
+          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
+            Muse daily limit reached. Showing the built-in picks.
+          </p>
+        )}
         <p className="mt-2 max-w-prose text-base text-ink-soft">{currentPlan.subtitle}</p>
         <p className="mt-4 max-w-prose text-base text-ink">{currentPlan.aiRationale}</p>
         {(currentPlan.aiIcebreaker || currentPlan.aiCoordinationTip) && (
@@ -187,14 +206,40 @@ export function PlanningViews({
           {currentPlan.itinerary.length} stops inside the shared window.
         </p>
         <ol className="mt-4 border-t border-seam">
-          {currentPlan.itinerary.map((item, idx) => (
+          {currentPlan.itinerary.map((item, idx) => {
+            const slot = parseSlotLabel(item.timeSlot);
+            const coverage = slot ? coverageCount(friends, slot.start, slot.end) : null;
+            return (
             <li key={item.activity.id} className="grid gap-3 border-b border-seam py-5 sm:grid-cols-[7.5rem_1fr]">
               <div>
                 <p className="text-sm font-semibold tabular-nums text-ink">{item.timeSlot}</p>
                 <p className="mt-1 text-sm text-ink-soft">Stop {idx + 1}</p>
+                {coverage && (
+                  <p
+                    className="avail-heat mt-1 inline-block border px-1.5 py-0.5 text-sm font-semibold"
+                    data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
+                    style={heatStyle(coverage.count, coverage.total)}
+                  >
+                    {coverage.word} · {coverage.count}/{coverage.total} free
+                  </p>
+                )}
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-ink">{item.activity.name}</h3>
+                {(item.activity.kind || item.activity.resultFreshness) && (
+                  <p className="mt-1 text-sm text-ink">
+                    {item.activity.resultFreshness === "live"
+                      ? "Live"
+                      : item.activity.resultFreshness === "saved"
+                        ? `Saved, last seen ${formatAge(item.activity.lastSeen) || "earlier"}`
+                        : "Demo"}
+                    {item.activity.kind === "event"
+                      ? ` · Event${formatEventSpan(item.activity.startDate, item.activity.endDate) ? `, ${formatEventSpan(item.activity.startDate, item.activity.endDate)}` : ", date not listed"}`
+                      : item.activity.kind === "place"
+                        ? " · Place"
+                        : ""}
+                  </p>
+                )}
                 <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-soft">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <span>
@@ -213,12 +258,22 @@ export function PlanningViews({
                     </li>
                   ))}
                 </ul>
+                {item.activity.whyThisFits && (
+                  <p className="mt-2 text-base text-ink">
+                    <span className="font-semibold">Why this fits. </span>
+                    {item.activity.whyThisFits}
+                  </p>
+                )}
+                {item.activity.museEnriched && (
+                  <p className="mt-1 text-sm font-semibold text-ink">Muse</p>
+                )}
                 <p className="mt-2 text-sm text-ink-soft">
-                  {item.notes} {item.availableFriendsCount} friends free for this stop.
+                  {item.notes} {coverage ? `${coverage.word}, ${coverage.count} of ${coverage.total} free for this stop.` : `${item.availableFriendsCount} friends free for this stop.`}
                 </p>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ol>
       </section>
 

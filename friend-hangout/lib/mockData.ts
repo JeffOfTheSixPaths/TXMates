@@ -1,4 +1,4 @@
-import { Activity, Friend } from '@/types';
+import type { Activity, Friend } from '@/types';
 
 export const AUSTIN_NEIGHBORHOODS = [
   'Downtown Austin',

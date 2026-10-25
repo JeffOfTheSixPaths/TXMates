@@ -1,4 +1,6 @@
+import type { CSSProperties } from "react";
 import type { Friend } from "@/types";
+import { availabilityRatio, availabilityStrong, availabilityWord } from "@/lib/availabilityHeat";
 
 export type RunnerHour = {
   h24: number;
@@ -51,30 +53,26 @@ export function OverlapRunner({
   summary: string;
 }) {
   return (
-    <figure className="mt-5">
-      <figcaption className="text-base text-ink">{summary}</figcaption>
+    <figure className="avail-board mt-5">
+      <figcaption className="text-base">{summary}</figcaption>
       <div className="mt-3 overflow-x-auto">
         <div
-          className="grid min-w-[42rem] grid-cols-12 border-l border-seam"
+          className="grid min-w-[42rem] grid-cols-12 border-l border-[var(--avail-line)]"
           role="list"
-          aria-label="Hours from 11 AM to 10 PM"
+          aria-label="Hours from 11 AM to 10 PM. Green deepens as more mates are free."
         >
           {hours.map((cell) => {
-            const ratio = cell.total > 0 ? cell.count / cell.total : 0;
-            const tone =
-              ratio === 1
-                ? "bg-sun text-ink"
-                : ratio > 0
-                  ? "bg-sun-soft text-ink"
-                  : "bg-sheet text-ink-soft";
-            const who =
-              cell.names.length > 0 ? cell.names.join(", ") : "nobody yet";
+            const word = availabilityWord(cell.count, cell.total);
+            const who = cell.names.length > 0 ? cell.names.join(", ") : "nobody yet";
             return (
               <div
                 key={cell.h24}
                 role="listitem"
-                title={`${cell.count} of ${cell.total} free. ${who}`}
-                className={`runner-cell flex h-16 flex-col items-center justify-center border-y border-r border-seam ${tone}`}
+                title={`${word}. ${cell.count} of ${cell.total} free. ${who}`}
+                aria-label={`${cell.label}, ${word}, ${cell.count} of ${cell.total} free. ${who}`}
+                className="runner-cell avail-heat flex h-16 flex-col items-center justify-center border-y border-r"
+                data-strong={availabilityStrong(cell.count, cell.total) ? "true" : "false"}
+                style={heatStyle(cell.count, cell.total)}
               >
                 <span className="text-sm font-semibold tabular-nums">{cell.label}</span>
                 <span className="text-sm tabular-nums">
@@ -85,20 +83,36 @@ export function OverlapRunner({
           })}
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-4 text-sm text-ink-soft">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 border border-seam bg-sheet" />
+      <ul className="mt-2 flex flex-wrap gap-4 text-sm">
+        <li className="inline-flex items-center gap-2">
+          <HeatSwatch count={0} total={4} />
           None free
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 border border-seam bg-sun-soft" />
+        </li>
+        <li className="inline-flex items-center gap-2">
+          <HeatSwatch count={2} total={4} />
           Some free
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 border border-seam bg-sun" />
+        </li>
+        <li className="inline-flex items-center gap-2">
+          <HeatSwatch count={4} total={4} />
           Everyone free
-        </span>
-      </div>
+        </li>
+      </ul>
+      <p className="mt-1 text-sm">The green gets deeper as more mates can make that hour.</p>
     </figure>
+  );
+}
+
+export function heatStyle(count: number, total: number): CSSProperties {
+  return { "--avail": String(availabilityRatio(count, total)) } as CSSProperties;
+}
+
+function HeatSwatch({ count, total }: { count: number; total: number }) {
+  return (
+    <span
+      className="avail-heat inline-block h-3 w-3 border"
+      data-strong={availabilityStrong(count, total) ? "true" : "false"}
+      style={heatStyle(count, total)}
+      aria-hidden
+    />
   );
 }

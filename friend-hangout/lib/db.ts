@@ -2,6 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import { HangoutPreferences, Friend, ActivityCategory } from '@/types';
+import { ensureActivityTables } from './activityStore';
+import { ensureMuseCache } from './museCache';
+import { ensureMuseUsage } from './museUsage';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DB_DIR)) {
@@ -48,6 +51,9 @@ export function getDb(): DatabaseSync {
         UNIQUE (hangout_id, friend_id)
       );
     `);
+    ensureActivityTables(dbInstance);
+    ensureMuseCache(dbInstance);
+    ensureMuseUsage(dbInstance);
   }
   return dbInstance;
 }

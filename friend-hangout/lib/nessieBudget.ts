@@ -57,6 +57,8 @@ export type HangoutBudgetEstimate = {
   friendCount: number;
   reasoning: string;
   recurring: RecurringCharge[];
+  museTips?: string[];
+  museEnriched?: boolean;
 };
 
 export type NessieCustomerOption = {
@@ -72,6 +74,8 @@ export type NessieAccountSummary = {
   last4: string;
 };
 
+export type NessieReadReason = 'missing-key' | 'no-customers' | 'unreachable' | 'account-mismatch';
+
 export type NessieBudgetResponse = {
   source: 'nessie' | 'simulated';
   estimate: HangoutBudgetEstimate;
@@ -82,6 +86,7 @@ export type NessieBudgetResponse = {
   selectedAccountId: string | null;
   accountLocked: boolean;
   notice: string | null;
+  reason: NessieReadReason | null;
 };
 
 const MONTHLY_GAP = { min: 20, max: 45 };

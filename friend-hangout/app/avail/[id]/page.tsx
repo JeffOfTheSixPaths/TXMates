@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { ActivityCategory, Friend, HangoutPreferences } from '@/types';
 import { ACTIVITY_CATEGORIES, INITIAL_FRIENDS } from '@/lib/mockData';
-import { buildRunnerHours, OverlapRunner } from '@/components/OverlapRunner';
+import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
+import { buildRunnerHours, heatStyle, OverlapRunner } from '@/components/OverlapRunner';
 import { CATEGORY_ICONS } from '@/components/categoryIcons';
 
 interface AvailPageProps {
@@ -272,17 +273,32 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                     ["14:30", "20:30", "Late afternoon", "2:30–8:30"],
                     ["17:00", "22:00", "Evening", "5–10"],
                     ["11:00", "22:00", "All day", "11–10"],
-                  ].map(([start, end, label, sub]) => (
-                    <button
-                      type="button"
-                      key={label}
-                      onClick={() => applyPreset(start, end)}
-                      className="border border-seam bg-pine px-2 py-3 text-center text-ink"
-                    >
-                      <span className="block text-base font-semibold">{label}</span>
-                      <span className="text-sm text-ink-soft">{sub}</span>
-                    </button>
-                  ))}
+                  ].map(([start, end, label, sub]) => {
+                    const friends = hangout?.friends || INITIAL_FRIENDS;
+                    const coverage = coverageCount(friends, start, end, {
+                      friendId: selectedFriendId,
+                      startTime,
+                      endTime,
+                    });
+                    const selected = startTime === start && endTime === end;
+                    return (
+                      <button
+                        type="button"
+                        key={label}
+                        onClick={() => applyPreset(start, end)}
+                        aria-pressed={selected}
+                        data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
+                        style={heatStyle(coverage.count, coverage.total)}
+                        className={`avail-heat border px-2 py-3 text-center ${selected ? "outline outline-2 outline-offset-2 outline-ink" : ""}`}
+                      >
+                        <span className="block text-base font-semibold">{label}</span>
+                        <span className="text-sm">{sub}</span>
+                        <span className="mt-1 block text-sm font-semibold">
+                          {coverage.word} · {coverage.count}/{coverage.total}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="text-base font-semibold text-ink">
@@ -312,7 +328,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 <h2 className="text-lg font-semibold text-ink">Group overlap</h2>
                 <OverlapRunner
                   hours={runnerHours}
-                  summary="Sun means every mate, including the hours you just picked, is free."
+                  summary="Full green means every mate, including the hours you just picked, is free. A lighter green means only some are. An empty cell means nobody is."
                 />
               </div>
 

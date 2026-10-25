@@ -75,8 +75,51 @@ input[type="range"] {
   border: 2px solid #e7f0df;
 }
 
+:root {
+  --avail-empty: var(--color-sheet, #f4f7ef);
+  --avail-full: var(--color-leaf, #1f6b45);
+  --avail-ink: var(--color-ink, #241c16);
+  --avail-ink-strong: var(--color-sheet, #f4f7ef);
+  /* 68% leaf on sheet is about 3:1, so an empty cell still shows its edge. */
+  --avail-line: color-mix(in srgb, var(--color-leaf, #1f6b45) 68%, var(--color-sheet, #f4f7ef));
+  /* Partial fills stop at 73% leaf so dark text stays at least 4.5:1. */
+  --avail-scale: 73%;
+}
+
+.avail-heat {
+  background-color: color-mix(
+    in srgb,
+    var(--avail-full) calc(var(--avail, 0) * var(--avail-scale)),
+    var(--avail-empty)
+  );
+  color: var(--avail-ink);
+  border-color: var(--avail-line);
+}
+
+.avail-heat[data-strong="true"] {
+  background-color: var(--avail-full);
+  color: var(--avail-ink-strong);
+}
+
+.avail-board {
+  color: var(--avail-ink);
+}
+
 .runner-cell {
   transition: background-color 220ms var(--ease-out-expo), color 220ms var(--ease-out-expo);
+}
+
+@media (prefers-color-scheme: dark) {
+  .avail-board {
+    --avail-empty: color-mix(in srgb, var(--color-sheet, #f4f7ef) 12%, var(--color-ink, #241c16));
+    --avail-full: var(--color-leaf, #1f6b45);
+    --avail-ink: var(--color-sheet, #f4f7ef);
+    --avail-ink-strong: var(--color-sheet, #f4f7ef);
+    --avail-line: color-mix(in srgb, var(--color-sheet, #f4f7ef) 46%, var(--color-leaf, #1f6b45));
+    --avail-scale: 100%;
+    background: var(--color-ink, #241c16);
+    padding: 0.75rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

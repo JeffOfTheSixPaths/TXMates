@@ -9,7 +9,7 @@ import {
   Friend,
 } from '@/types';
 import { INITIAL_FRIENDS, MOCK_ACTIVITIES } from '@/lib/mockData';
-import { generatePlan, calculateAvailabilityOverlap } from '@/lib/planner';
+import { generatePlan, buildItinerary, calculateAvailabilityOverlap } from '@/lib/planner';
 import { Header } from '@/components/Header';
 import { HangoutForm } from '@/components/HangoutForm';
 import { PlanningViews } from '@/components/PlanningViews';
@@ -42,6 +42,7 @@ export default function Home() {
   const [preferences, setPreferences] = useState<HangoutPreferences>(DEFAULT_PREFERENCES);
   const [activeView, setActiveView] = useState<PlanningViewType>('overall');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [musePending, setMusePending] = useState(true);
   const [shortlist, setShortlist] = useState<Activity[]>([]);
   const [activeTab, setActiveTab] = useState<'planner' | 'discovery'>('planner');
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
@@ -59,6 +60,10 @@ export default function Home() {
         aiCoordinationTip?: string;
         isLive: boolean;
         model: string;
+        cached?: boolean;
+        cachedAt?: string;
+        activities?: Activity[];
+        limited?: boolean;
       } | null
     >
   >({
@@ -171,7 +176,7 @@ export default function Home() {
   }, [preferences.id, preferences.friends]);
 
   // Fetch live Meta Muse Spark AI synthesis
-  const fetchLiveMusePlan = async (view: PlanningViewType) => {
+  const fetchLiveMusePlan = async (view: PlanningViewType, isCancelled = () => false) => {
     try {
       const basePlan = generatePlan(preferences, view);
       const res = await fetch('/api/muse/plan', {
@@ -181,70 +186,46 @@ export default function Home() {
           preferences,
           viewType: view,
           activities: basePlan.activities,
+          nessie: nessie?.estimate || null,
         }),
       });
 
-      if (res.ok) {
+      if (res.ok && !isCancelled()) {
         const data = await res.json();
-        if (data.isLive) {
+        if (data.isLive || data.limited) {
           setLiveAiData((prev) => ({
             ...prev,
             [view]: {
-              aiRationale: data.aiRationale,
+              aiRationale: data.aiRationale || '',
               aiIcebreaker: data.aiIcebreaker,
               aiCoordinationTip: data.aiCoordinationTip,
-              isLive: true,
+              isLive: Boolean(data.isLive),
               model: data.model || 'muse-spark-1.3',
+              cached: Boolean(data.cached),
+              cachedAt: typeof data.cachedAt === 'string' ? data.cachedAt : undefined,
+              activities: Array.isArray(data.activities) ? data.activities : undefined,
+              limited: Boolean(data.limited),
             },
           }));
         }
       }
     } catch {
       // Deterministic fallback remains active
+    } finally {
+      if (!isCancelled()) setMusePending(false);
     }
   };
 
-  // Initial live Meta Muse synthesis on mount
+  // Initial live Meta Muse synthesis on mount. The fetch is deferred so this
+  // effect does not set state while React is still committing the first render.
   useEffect(() => {
     let cancelled = false;
-
-    async function initLivePlan() {
-      try {
-        const basePlan = generatePlan(preferences, 'overall');
-        const res = await fetch('/api/muse/plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            preferences,
-            viewType: 'overall',
-            activities: basePlan.activities,
-          }),
-        });
-
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          if (data.isLive) {
-            setLiveAiData((prev) => ({
-              ...prev,
-              overall: {
-                aiRationale: data.aiRationale,
-                aiIcebreaker: data.aiIcebreaker,
-                aiCoordinationTip: data.aiCoordinationTip,
-                isLive: true,
-                model: data.model || 'muse-spark-1.3',
-              },
-            }));
-          }
-        }
-      } catch {
-        // Fallback remains active
-      }
-    }
-
-    initLivePlan();
-
+    const timer = window.setTimeout(() => {
+      void fetchLiveMusePlan('overall', () => cancelled);
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -253,14 +234,24 @@ export default function Home() {
   const currentPlan = useMemo(() => {
     const base = generatePlan(preferences, activeView, nessie?.estimate);
     const live = liveAiData[activeView];
-    if (live && live.isLive) {
+    if (live && (live.isLive || live.limited)) {
+      const activities = live.activities?.length ? live.activities : base.activities;
+      const totalCostPerPerson = activities.reduce((sum, activity) => sum + activity.estimatedCostPerPerson, 0);
+      const friendCount = preferences.friendCount || preferences.friends.length || 1;
       return {
         ...base,
+        activities,
+        itinerary: live.activities?.length ? buildItinerary(activities, preferences) : base.itinerary,
+        totalCostPerPerson,
+        totalGroupCost: totalCostPerPerson * friendCount,
         aiRationale: live.aiRationale || base.aiRationale,
-        isLiveAiGenerated: true,
+        isLiveAiGenerated: Boolean(live.isLive),
         aiModelUsed: live.model,
         aiIcebreaker: live.aiIcebreaker,
         aiCoordinationTip: live.aiCoordinationTip,
+        museFromCache: live.cached,
+        museCachedAt: live.cachedAt,
+        museLimited: Boolean(live.limited),
       };
     }
     return base;
@@ -269,6 +260,7 @@ export default function Home() {
   // Handle plan regeneration with live Meta Muse Spark synthesis
   const handleGenerate = () => {
     setIsGenerating(true);
+    setMusePending(true);
     fetchLiveMusePlan(activeView).finally(() => {
       setIsGenerating(false);
       // Smooth scroll to planning views
@@ -355,7 +347,9 @@ export default function Home() {
             <button
               type="button"
               onClick={handleGenerate}
-              className="inline-flex min-h-11 items-center justify-center bg-tomato px-4 text-base font-semibold text-white"
+              className="inline-flex min-h-11 items-center justify-center bg-tomato px-4 text-base font-semibold text-white disabled:opacity-70"
+              disabled={isGenerating}
+              aria-busy={isGenerating}
             >
               {isGenerating ? "Refreshing the plan…" : "Refresh the plan"}
             </button>
@@ -443,11 +437,13 @@ export default function Home() {
                 onSelectView={(newView) => {
                   setActiveView(newView);
                   if (!liveAiData[newView]) {
-                    fetchLiveMusePlan(newView);
+                    setMusePending(true);
+                    void fetchLiveMusePlan(newView);
                   }
                 }}
                 friends={preferences.friends}
                 groupName={preferences.groupName}
+                musePending={musePending}
               />
             </div>
           </div>

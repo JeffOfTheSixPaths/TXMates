@@ -28,6 +28,16 @@ export interface Activity {
   sourceUrl?: string;
   isLiveResult?: boolean;
   uncertainties?: string[];
+  kind?: 'event' | 'place';
+  startDate?: string | null;
+  endDate?: string | null;
+  firstSeen?: string;
+  lastSeen?: string;
+  resultFreshness?: 'live' | 'saved';
+  museEnriched?: boolean;
+  venue?: string;
+  address?: string;
+  whyThisFits?: string;
 }
 
 export interface TimeSlot {
@@ -93,6 +103,9 @@ export interface HangoutPlan {
   aiModelUsed?: string;
   aiIcebreaker?: string;
   aiCoordinationTip?: string;
+  museFromCache?: boolean;
+  museCachedAt?: string;
+  museLimited?: boolean;
 }
 
 export interface VoteRecord {

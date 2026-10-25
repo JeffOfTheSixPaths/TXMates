@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { ActivityCategory, Friend, HangoutPreferences } from '@/types';
 import { ACTIVITY_CATEGORIES, AUSTIN_NEIGHBORHOODS } from '@/lib/mockData';
+import { availabilityStrong, coverageCount } from '@/lib/availabilityHeat';
+import { heatStyle } from './OverlapRunner';
 import { calculateAvailabilityOverlap } from '@/lib/planner';
 import { CATEGORY_ICONS } from './categoryIcons';
 
@@ -285,26 +287,31 @@ export function HangoutForm({
             <div className="mt-1 grid grid-cols-2 gap-2">
               {(
                 [
-                  { id: "afternoon", label: "Afternoon", sub: "12–5" },
-                  { id: "evening", label: "Evening", sub: "5–9" },
-                  { id: "night", label: "Night", sub: "7+" },
-                  { id: "all-day", label: "All day", sub: "Flexible" },
+                  { id: "afternoon", label: "Afternoon", sub: "12–5", start: "12:00", end: "17:00" },
+                  { id: "evening", label: "Evening", sub: "5–9", start: "17:00", end: "21:00" },
+                  { id: "night", label: "Night", sub: "7+", start: "19:00", end: "23:00" },
+                  { id: "all-day", label: "All day", sub: "Flexible", start: "11:00", end: "22:00" },
                 ] as const
-              ).map((t) => (
-                <button
-                  type="button"
-                  key={t.id}
-                  onClick={() => onChange({ ...preferences, timePreference: t.id })}
-                  className={`px-2 py-2 text-center ${
-                    preferences.timePreference === t.id
-                      ? "bg-sun text-ink"
-                      : "border border-seam bg-pine text-ink"
-                  }`}
-                >
-                  <span className="block text-base font-semibold">{t.label}</span>
-                  <span className="text-sm text-ink-soft">{t.sub}</span>
-                </button>
-              ))}
+              ).map((t) => {
+                const coverage = coverageCount(preferences.friends, t.start, t.end);
+                const selected = preferences.timePreference === t.id;
+                return (
+                  <button
+                    type="button"
+                    key={t.id}
+                    onClick={() => onChange({ ...preferences, timePreference: t.id })}
+                    aria-pressed={selected}
+                    data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
+                    style={heatStyle(coverage.count, coverage.total)}
+                    className={`avail-heat border px-2 py-2 text-center ${selected ? "outline outline-2 outline-offset-2 outline-ink" : ""}`}
+                  >
+                    <span className="block text-base font-semibold">{t.label}</span>
+                    <span className="text-sm">
+                      {t.sub} · {coverage.word} {coverage.count}/{coverage.total}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </fieldset>
         </div>
@@ -315,8 +322,10 @@ export function HangoutForm({
               <h3 className="text-lg font-semibold text-ink">Free windows</h3>
               <p className="text-base text-ink-soft">
                 {overlap.allFriendsAvailable
-                  ? `Everyone overlaps ${overlap.commonStart}–${overlap.commonEnd} (${overlap.overlapHours} hrs).`
-                  : `${overlap.availableFriendCount} of ${preferences.friends.length} overlap ${overlap.commonStart}–${overlap.commonEnd}.`}
+                  ? `All free ${overlap.commonStart}–${overlap.commonEnd} (${overlap.overlapHours} hrs).`
+                  : overlap.availableFriendCount > 0
+                    ? `Some free, ${overlap.availableFriendCount} of ${preferences.friends.length} overlap ${overlap.commonStart}–${overlap.commonEnd}.`
+                    : `None free in a shared window.`}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -670,14 +679,22 @@ function NessieBudgetNote({
 
   return (
     <div className="mt-3 space-y-3">
-      <p role="status" className="text-base text-ink">
-        {nessieLoading
-          ? 'Reading Nessie accounts, purchases, and bills…'
-          : nessie?.source === 'nessie'
-            ? nessie.estimate.reasoning
-            : nessie?.notice ||
-              'Estimate only. Nessie did not answer, so this cap is not a bank balance.'}
-      </p>
+      {nessie?.reason === 'no-customers' ? (
+        <p role="status" className="border border-seam bg-sun px-3 py-3 text-base text-ink">
+          <span className="font-semibold">No Nessie customers on this key. </span>
+          {nessie.notice ||
+            'The cap stays an estimate until a customer exists. From the friend-hangout folder, npm run nessie:seed adds a demo customer, checking account, purchases, and monthly and annual bills.'}
+        </p>
+      ) : (
+        <p role="status" className="text-base text-ink">
+          {nessieLoading
+            ? 'Reading Nessie accounts, purchases, and bills, then asking Muse to explain the numbers…'
+            : nessie?.source === 'nessie'
+              ? `${nessie.estimate.museEnriched ? 'Muse. ' : ''}${nessie.estimate.reasoning}`
+              : nessie?.notice ||
+                'Estimate only. Nessie did not answer, so this cap is not a bank balance.'}
+        </p>
+      )}
       {nessie && nessie.customers.length > 1 && !nessie.customerLocked && (
         <label className="block text-base font-semibold text-ink">
           Nessie customer
@@ -711,6 +728,13 @@ function NessieBudgetNote({
             ))}
           </select>
         </label>
+      )}
+      {nessie?.estimate.museTips && nessie.estimate.museTips.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-base text-ink">
+          {nessie.estimate.museTips.map((tip) => (
+            <li key={tip}>{tip}</li>
+          ))}
+        </ul>
       )}
       {showUse && (
         <button
