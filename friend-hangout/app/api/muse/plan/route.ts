@@ -5,10 +5,8 @@ import { getDb } from '@/lib/db';
 import { activityPolicy } from '@/lib/activityPolicy';
 import { musePlanCacheKey, readMuseCache, writeMuseCache } from '@/lib/museCache';
 import { museComplete } from '@/lib/museClient';
-import { heuristicWhy, parseMusePlan } from '@/lib/musePlan';
-import { MOCK_ACTIVITIES } from '@/lib/mockData';
+import { heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseMusePlan, uniquePlanCandidates } from '@/lib/musePlan';
 import { calculateAvailabilityOverlap } from '@/lib/planner';
-import { searchSavedActivities, toActivity } from '@/lib/activityStore';
 import type { HangoutBudgetEstimate } from '@/lib/nessieBudget';
 
 const MUSE_MODEL = process.env.MUSE_MODEL || 'muse-spark-1.3';
@@ -32,15 +30,12 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
     const db = getDb();
-    const saved = searchSavedActivities(db, { query: '', category: 'all' }).rows
-      .slice(0, 8)
-      .map((row) => toActivity(row, 'saved'));
-    const pool = dedupeActivities([...activities, ...saved, ...MOCK_ACTIVITIES]).slice(0, 12);
+    const candidates = uniquePlanCandidates(activities);
     const cacheKey = musePlanCacheKey({
       viewType,
       model: MUSE_MODEL,
       preferences,
-      activities: pool,
+      activities: candidates,
       budget: body.nessie
         ? {
             source: body.nessie.source,
@@ -75,17 +70,7 @@ export async function POST(req: NextRequest) {
 
     const overlap = calculateAvailabilityOverlap(preferences.friends || []);
     const nessie = body.nessie;
-    const systemPrompt = `You are Meta Muse Spark planning a friend hangout in Austin.
-Reply with ONLY JSON:
-{
-  "picks": [{"id":"activity id","whyThisFits":"one short sentence"}],
-  "aiRationale": "2-3 sentences",
-  "aiIcebreaker": "one line",
-  "aiCoordinationTip": "one line",
-  "budgetExplanation": "plain-language read of the Nessie numbers, or empty if none were provided",
-  "budgetTips": ["up to 3 short tips"]
-}
-Choose up to 3 ids from the candidate list. Respect the budget and the overlap window.`;
+    const systemPrompt = musePlanSystemPrompt();
     const userPrompt = JSON.stringify({
       group: preferences.groupName,
       friendCount: preferences.friendCount,
@@ -94,20 +79,8 @@ Choose up to 3 ids from the candidate list. Respect the budget and the overlap w
       maxBudgetPerPerson: preferences.maxBudgetPerPerson,
       interests: preferences.selectedInterests,
       viewType,
-      nessie: nessie
-        ? {
-            source: nessie.source,
-            balance: nessie.balance,
-            typicalMonthlySpend: nessie.typicalMonthlySpend,
-            recurringMonthly: nessie.recurringMonthly,
-            annualChargesMonthly: nessie.annualChargesMonthly,
-            upcomingCharges: nessie.upcomingCharges,
-            safetyBuffer: nessie.safetyBuffer,
-            discretionary: nessie.discretionary,
-            suggestedPerPerson: nessie.suggestedPerPerson,
-          }
-        : null,
-      candidates: pool.map((activity) => ({
+      nessie: museBudgetForPrompt(nessie),
+      candidates: candidates.map((activity) => ({
         id: activity.id,
         name: activity.name,
         category: activity.category,
@@ -141,16 +114,16 @@ Choose up to 3 ids from the candidate list. Respect the budget and the overlap w
       return NextResponse.json({ isLive: false, error: 'Muse did not return a plan' });
     }
 
-    const parsed = parseMusePlan(result.content, new Set(pool.map((activity) => activity.id)));
+    const parsed = parseMusePlan(result.content, new Set(candidates.map((activity) => activity.id)));
     const picks = parsed?.picks.length
       ? parsed.picks
-      : pool.slice(0, 3).map((activity) => ({
+      : candidates.slice(0, 3).map((activity) => ({
           id: activity.id,
           whyThisFits: heuristicWhy(activity, preferences.selectedInterests || [], preferences.maxBudgetPerPerson),
         }));
     const picked: Activity[] = [];
     for (const pick of picks) {
-      const activity = pool.find((item) => item.id === pick.id);
+      const activity = candidates.find((item) => item.id === pick.id);
       if (activity) picked.push({ ...activity, whyThisFits: pick.whyThisFits });
     }
     const aiRationale = parsed?.aiRationale || '';
@@ -189,16 +162,4 @@ Choose up to 3 ids from the candidate list. Respect the budget and the overlap w
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ isLive: false, error: message });
   }
-}
-
-function dedupeActivities(activities: Activity[]): Activity[] {
-  const seen = new Set<string>();
-  const unique: Activity[] = [];
-  for (const activity of activities) {
-    const key = activity.id || activity.name;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(activity);
-  }
-  return unique;
 }

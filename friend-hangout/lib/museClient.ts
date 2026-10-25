@@ -25,6 +25,8 @@ export async function museComplete(
     messages: Message[];
     temperature?: number;
     maxTokens?: number;
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+    cacheContent?: (content: string) => boolean;
     now?: Date;
     ttlMs?: number;
     fetchImpl?: typeof fetch;
@@ -55,11 +57,13 @@ export async function museComplete(
         model,
         temperature: input.temperature ?? 0.2,
         max_tokens: input.maxTokens ?? 1200,
+        max_completion_tokens: input.maxTokens ?? 1200,
+        ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {}),
         messages: input.messages,
       }),
     });
     const payload = (await response.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ finish_reason?: string; message?: { content?: string } }>;
       usage?: unknown;
     } | null;
     const usage = tokenUsageFromApi(payload);
@@ -67,16 +71,19 @@ export async function museComplete(
       recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', usage, now });
       return { content: null, cached: false, limited: false };
     }
-    const content = payload.choices?.[0]?.message?.content?.trim() || '';
+    const choice = payload.choices?.[0];
+    const content = choice?.message?.content?.trim() || '';
+    const truncated = choice?.finish_reason === 'length';
+    const cacheable = Boolean(content) && !truncated && (input.cacheContent ? input.cacheContent(content) : true);
     recordMuseCall(db, {
       purpose: input.purpose,
       cacheKey: input.cacheKey,
       model,
-      status: content ? 'ok' : 'error',
+      status: cacheable ? 'ok' : 'error',
       usage,
       now,
     });
-    if (!content) return { content: null, cached: false, limited: false };
+    if (!cacheable) return { content: content || null, cached: false, limited: false };
     writeMuseContentCache(db, {
       cacheKey: input.cacheKey,
       purpose: input.purpose,

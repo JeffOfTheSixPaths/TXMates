@@ -291,12 +291,30 @@ export function searchSavedActivities(
   return { rows: result.activities.map((item) => item.row), relaxed: result.relaxed };
 }
 
+export function isSponsoredTitle(title: string): boolean {
+  return /\sAd$/i.test(title.trim());
+}
+
+export function purgeSponsoredActivities(db: DatabaseSync): number {
+  ensureActivityTables(db);
+  const rows = db.prepare(`SELECT id, name FROM activities`).all() as Array<{ id: string; name: string }>;
+  const remove = db.prepare(`DELETE FROM activities WHERE id = ?`);
+  let removed = 0;
+  for (const row of rows) {
+    if (!isSponsoredTitle(row.name)) continue;
+    remove.run(row.id);
+    removed += 1;
+  }
+  return removed;
+}
+
 export function cleanupActivities(
   db: DatabaseSync,
   now: Date,
   policy: Pick<ActivityPolicy, 'eventTtlDays' | 'placeStaleDays'>
 ): { deletedEvents: number; removedPlaces: number } {
   ensureActivityTables(db);
+  purgeSponsoredActivities(db);
   const today = civilDate(now);
   const eventCutoff = daysAgoIso(now, policy.eventTtlDays);
   const placeCutoff = daysAgoIso(now, policy.placeStaleDays);

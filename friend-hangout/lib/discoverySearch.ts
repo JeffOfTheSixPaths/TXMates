@@ -6,12 +6,20 @@ import {
   applyMuseEnrichment,
   applyRecheck,
   getActivityRow,
+  isSponsoredTitle,
   listUnenrichedIds,
   markQueryRefreshed,
   upsertActivity,
 } from './activityStore';
 import { museComplete } from './museClient';
-import { ENRICH_BATCH, enrichmentCacheKey, parseMuseEnrichments } from './museEnrich';
+import {
+  ENRICH_BATCH,
+  ENRICH_MAX_TOKENS,
+  ENRICH_REASONING_EFFORT,
+  enrichmentCacheKey,
+  enrichmentContentCacheable,
+  parseMuseEnrichments,
+} from './museEnrich';
 import { openSerpEngines, openSerpTimeoutMs } from './serviceTimeouts';
 
 const CATEGORIES = new Set(['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill']);
@@ -49,10 +57,19 @@ export type RefreshInput = {
 
 const inflight = new Map<string, Promise<void>>();
 
+const GENERIC_SEARCH = 'best things to do with friends venues activities';
+
 export function buildSearchText(location: string, category: string, query: string): string {
-  return [location, category !== 'all' ? category : 'best things to do with friends venues activities', query]
-    .filter(Boolean)
-    .join(' ');
+  const place = location.trim();
+  const term = query.trim();
+  const focusedCategory = category !== 'all' && category.trim() ? category.trim() : '';
+  if (term) {
+    const parts = [term];
+    if (focusedCategory) parts.push(focusedCategory);
+    if (place) parts.push('in', place);
+    return parts.join(' ');
+  }
+  return [place, focusedCategory || GENERIC_SEARCH].filter(Boolean).join(' ');
 }
 
 export function openSerpBaseUrl(raw = process.env.OPENSERP_URL): string {
@@ -73,9 +90,11 @@ export async function refreshDiscoveryQuery(
 
   const ids: string[] = [];
   for (const hit of hits) {
-    const title = cleanTitle(hit.title || '');
+    const rawTitle = hit.title || '';
+    const title = cleanTitle(rawTitle);
     const url = hit.url || '';
     if (!title || !url || url.includes('google.com/search')) continue;
+    if (isSponsoredTitle(rawTitle) || isSponsoredTitle(title)) continue;
     const combined = `${title} ${hit.snippet || ''}`;
     const inferred = inferCategory(combined);
     const finalCategory = asCategory(category !== 'all' ? category : inferred.category);
@@ -126,7 +145,7 @@ export function scheduleMuseClassification(db: DatabaseSync, ids: string[], fetc
   if (!key || ids.length === 0) return;
   const jobKey = `muse:${ids.slice().sort().join(',')}`;
   if (inflight.has(jobKey)) return;
-  const job = classifyStoredWithMuse(db, ids, fetchImpl)
+  const job = enrichStoredActivities(db, ids, fetchImpl)
     .catch(() => undefined)
     .finally(() => {
       if (inflight.get(jobKey) === job) inflight.delete(jobKey);
@@ -153,7 +172,7 @@ export async function recheckPlace(
   );
 }
 
-async function classifyStoredWithMuse(db: DatabaseSync, ids: string[], fetchImpl?: typeof fetch) {
+export async function enrichStoredActivities(db: DatabaseSync, ids: string[], fetchImpl?: typeof fetch) {
   const pending = ids.filter((id) => {
     const row = getActivityRow(db, id);
     return row && !row.enriched_at;
@@ -176,7 +195,9 @@ async function classifyStoredWithMuse(db: DatabaseSync, ids: string[], fetchImpl
     purpose: 'enrich',
     cacheKey: enrichmentCacheKey(listings.map((item) => item.id)),
     temperature: 0,
-    maxTokens: 1600,
+    maxTokens: ENRICH_MAX_TOKENS,
+    reasoningEffort: ENRICH_REASONING_EFFORT,
+    cacheContent: enrichmentContentCacheable,
     fetchImpl,
     messages: [
       {

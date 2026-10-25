@@ -9,13 +9,14 @@ export type MuseTokenUsage = {
 
 export type MuseCallStatus = 'ok' | 'error';
 
-const DEFAULT_MAX_CALLS = 200;
+export const DEFAULT_MUSE_MAX_CALLS_PER_DAY = 200;
 const MAX_CALLS_CAP = 1000;
 
-export function museMaxCallsPerDay(raw = process.env.MUSE_MAX_CALLS_PER_DAY): number {
-  if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_CALLS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_MAX_CALLS;
+export function museMaxCallsPerDay(raw?: string): number {
+  const value = raw === undefined ? process.env.MUSE_MAX_CALLS_PER_DAY : raw;
+  if (value === undefined || value.trim() === '') return DEFAULT_MUSE_MAX_CALLS_PER_DAY;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_MUSE_MAX_CALLS_PER_DAY;
   return Math.min(Math.round(parsed), MAX_CALLS_CAP);
 }
 

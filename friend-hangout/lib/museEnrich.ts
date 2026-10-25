@@ -15,6 +15,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const ENRICH_BATCH = 6;
+/** Reasoning tokens count against this budget. 1600 was spent entirely on reasoning and cut the JSON off. */
+export const ENRICH_MAX_TOKENS = 8192;
+/** Muse Spark rejects "none". "low" keeps a short reasoning pass so the JSON still fits. */
+export const ENRICH_REASONING_EFFORT = 'low' as const;
 
 export type MuseEnrichment = {
   id: string;
@@ -30,8 +34,14 @@ export type MuseEnrichment = {
 };
 
 export function enrichmentCacheKey(ids: string[]): string {
-  const raw = ['enrich-v1', ...ids.slice().sort()].join('\n');
+  const raw = ['enrich-v2', ...ids.slice().sort()].join('\n');
   return createHash('sha256').update(raw).digest('hex');
+}
+
+export function enrichmentContentCacheable(content: string): boolean {
+  const cleaned = stripFences(content);
+  if (!cleaned.endsWith(']')) return false;
+  return parseMuseEnrichments(cleaned).size > 0;
 }
 
 export function parseMuseEnrichments(content: string): Map<string, MuseEnrichment> {
@@ -68,13 +78,75 @@ export function categoryLabelFor(category: string): string | null {
   return CATEGORY_LABELS[category] || null;
 }
 
+function stripFences(content: string): string {
+  return content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+}
+
 function parseJson(content: string): unknown {
-  const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
+  const cleaned = stripFences(content);
+  const direct = tryParse(cleaned);
+  if (direct !== undefined) return direct;
+  const start = cleaned.indexOf('[');
+  if (start >= 0) {
+    const arrayText = cleaned.slice(start);
+    const closed = tryParse(arrayText);
+    if (closed !== undefined) return closed;
+    const objects = extractJsonObjects(arrayText);
+    if (objects.length > 0) return objects;
   }
+  return null;
+}
+
+function tryParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function extractJsonObjects(text: string): unknown[] {
+  const found: unknown[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== '{') continue;
+    const end = matchingBrace(text, index);
+    if (end < 0) break;
+    const parsed = tryParse(text.slice(index, end + 1));
+    if (parsed !== undefined) found.push(parsed);
+    index = end;
+  }
+  return found;
+}
+
+function matchingBrace(text: string, open: number): number {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
 }
 
 function isoOrNull(value: unknown): string | null {

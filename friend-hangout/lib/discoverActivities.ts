@@ -5,6 +5,7 @@ import { activityPolicy, isQueryFresh, type ActivityPolicy } from './activityPol
 import {
   cleanupActivities,
   discoveryCacheKey,
+  getActivityRow,
   getQueryRefreshedAt,
   searchSavedActivities,
   toActivity,
@@ -54,6 +55,64 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
   const saved = searchSavedActivities(db, { query, category });
   const cacheKey = discoveryCacheKey(location, category, query);
   const fresh = isQueryFresh(getQueryRefreshedAt(db, cacheKey), now, policy.cacheTtlMs);
+
+  if (query && saved.relaxed) {
+    const fromThisSearch = saved.rows.filter((row) => row.source_query === queryUsed);
+    if (fromThisSearch.length > 0) {
+      return {
+        source: 'saved',
+        isLive: false,
+        refreshing: false,
+        relaxed: false,
+        notice: null,
+        queryUsed,
+        activities: fromThisSearch.map((row) => toActivity(row, 'saved')),
+      };
+    }
+
+    if (!fresh) {
+      const refreshed = await refreshDiscoveryQuery(db, {
+        location,
+        category,
+        query,
+        now,
+        fetchImpl: input.fetchImpl,
+        policy,
+        allowMuse: false,
+      });
+      if (refreshed.ok && refreshed.ids.length > 0) {
+        if (allowMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
+        const liveRows = refreshed.ids
+          .map((id) => getActivityRow(db, id))
+          .filter((row): row is NonNullable<typeof row> => Boolean(row));
+        if (liveRows.length > 0) {
+          return {
+            source: 'openserp',
+            isLive: true,
+            refreshing: false,
+            relaxed: false,
+            notice: null,
+            queryUsed,
+            activities: liveRows.map((row) => toActivity(row, 'live')),
+          };
+        }
+      }
+    }
+
+    if (saved.rows.length > 0) {
+      return {
+        source: 'saved',
+        isLive: false,
+        refreshing: false,
+        relaxed: true,
+        notice: widerAfterMiss(query),
+        queryUsed,
+        activities: saved.rows.map((row) => toActivity(row, 'saved')),
+      };
+    }
+
+    return fallbackPayload(category, query, queryUsed);
+  }
 
   if (saved.rows.length > 0) {
     if (!fresh) {
@@ -139,6 +198,10 @@ function fallbackPayload(category: string, query: string, queryUsed: string): Di
     queryUsed,
     activities: ranked.activities,
   };
+}
+
+function widerAfterMiss(query: string): string {
+  return `Nothing matched "${query}". OpenSERP did not return results, so this is the wider saved list.`;
 }
 
 function savedNotice(relaxed: boolean, refreshing: boolean, query: string): string {

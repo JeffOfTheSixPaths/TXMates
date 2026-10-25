@@ -18,6 +18,63 @@ export type BudgetCopy = {
   tips: string[];
 };
 
+export function uniquePlanCandidates<T extends { id?: string; name?: string }>(activities: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const activity of activities) {
+    const key = activity.id || activity.name || '';
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(activity);
+  }
+  return unique;
+}
+
+export function musePlanSystemPrompt(): string {
+  return `You are Meta Muse Spark planning a friend hangout in Austin.
+Reply with ONLY JSON:
+{
+  "picks": [{"id":"activity id","whyThisFits":"one short sentence"}],
+  "aiRationale": "2-3 sentences",
+  "aiIcebreaker": "one line",
+  "aiCoordinationTip": "one line",
+  "budgetExplanation": "plain language for the budget figure, or empty if none were provided",
+  "budgetTips": ["up to 3 short tips"]
+}
+Choose up to 3 ids from the candidate list. Respect the budget and the overlap window.
+The nessie object has source "nessie" or "simulated", and figureLabel says which. When source is "nessie", budgetExplanation is a plain-language read of that customer's balances, and you may say what Nessie suggests. When source is "simulated", suggestedPerPerson is an estimate, not a bank figure. Call it an estimate in aiRationale and budgetExplanation. Do not say Nessie suggests it. When nessie is null, leave budgetExplanation empty.`;
+}
+
+export function museBudgetForPrompt(
+  nessie: {
+    source: string;
+    balance: number;
+    typicalMonthlySpend: number;
+    recurringMonthly: number;
+    annualChargesMonthly: number;
+    upcomingCharges: number;
+    safetyBuffer: number;
+    discretionary: number;
+    suggestedPerPerson: number;
+  } | null
+  | undefined
+) {
+  if (!nessie) return null;
+  const simulated = nessie.source !== 'nessie';
+  return {
+    source: simulated ? 'simulated' : 'nessie',
+    figureLabel: simulated ? 'simulated estimate' : 'Nessie suggestion',
+    balance: nessie.balance,
+    typicalMonthlySpend: nessie.typicalMonthlySpend,
+    recurringMonthly: nessie.recurringMonthly,
+    annualChargesMonthly: nessie.annualChargesMonthly,
+    upcomingCharges: nessie.upcomingCharges,
+    safetyBuffer: nessie.safetyBuffer,
+    discretionary: nessie.discretionary,
+    suggestedPerPerson: nessie.suggestedPerPerson,
+  };
+}
+
 export function planPromptCacheKey(input: {
   viewType: string;
   preferences: HangoutPreferences;

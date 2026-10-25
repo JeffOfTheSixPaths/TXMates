@@ -8,7 +8,9 @@ import {
   applyRecheck,
   cleanupActivities,
   getActivityRow,
+  isSponsoredTitle,
   listUnenrichedIds,
+  purgeSponsoredActivities,
   searchSavedActivities,
   upsertActivity,
 } from './activityStore.ts';
@@ -188,6 +190,25 @@ describe('activity store', () => {
     assert.equal(row?.estimated_cost, 120);
     assert.equal(row?.category, 'music');
     assert.deepEqual(listUnenrichedIds(db, 10), []);
+    db.close();
+  });
+
+  it('drops sponsored titles and purges ones already stored', () => {
+    assert.equal(isSponsoredTitle('Austin Kayaking Fun - Austin Water Adventures Ad'), true);
+    assert.equal(isSponsoredTitle("Torchy's Tacos"), false);
+    const db = openDb();
+    const now = new Date('2026-10-25T12:00:00.000Z');
+    const ad = upsertActivity(
+      db,
+      draft(now, {
+        name: 'Austin Kayaking Fun - Austin Water Adventures Ad',
+        url: 'https://ads.example/kayak',
+      })
+    );
+    const kept = upsertActivity(db, draft(now));
+    assert.equal(purgeSponsoredActivities(db), 1);
+    assert.equal(getActivityRow(db, ad.id), null);
+    assert.ok(getActivityRow(db, kept.id));
     db.close();
   });
 });
