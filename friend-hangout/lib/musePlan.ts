@@ -33,6 +33,10 @@ export function uniquePlanCandidates<T extends { id?: string; name?: string }>(a
   return unique;
 }
 
+export function museBudgetPromptRules(): string {
+  return `The nessie object has source "nessie" or "simulated", and figureLabel says which. When source is "nessie", budgetExplanation is a plain-language read of that customer's balances, and you may say what Nessie suggests. savingsBalance is held separately and is not spendable. plannedMonthlySavings is already set aside each month. balance is checking with credit-card debt subtracted, and Nessie does not change it when purchases or deposits are recorded. When source is "simulated", suggestedPerPerson is an estimate, not a bank figure. Call it an estimate in aiRationale and budgetExplanation. Do not say Nessie suggests it. When nessie is null, leave budgetExplanation empty.`;
+}
+
 export function musePlanSystemPrompt(location = 'Austin, TX'): string {
   const city = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
   return `You are Meta Muse Spark planning a friend hangout in ${city}.
@@ -46,7 +50,82 @@ Reply with ONLY JSON:
   "budgetTips": ["up to 3 short tips"]
 }
 Choose up to 3 ids from the candidate list. Respect the budget and the overlap window.
-The nessie object has source "nessie" or "simulated", and figureLabel says which. When source is "nessie", budgetExplanation is a plain-language read of that customer's balances, and you may say what Nessie suggests. savingsBalance is held separately and is not spendable. plannedMonthlySavings is already set aside each month. balance is checking with credit-card debt subtracted, and Nessie does not change it when purchases or deposits are recorded. When source is "simulated", suggestedPerPerson is an estimate, not a bank figure. Call it an estimate in aiRationale and budgetExplanation. Do not say Nessie suggests it. When nessie is null, leave budgetExplanation empty.`;
+${museBudgetPromptRules()}`;
+}
+
+export function hangoutGroupSize(preferences: { friendCount?: number; friends?: unknown[] }): number {
+  const named = preferences.friends?.length ?? 0;
+  if (named > 0) return named;
+  return Math.max(1, preferences.friendCount || 1);
+}
+
+export function groupSizeInstruction(total: number): string {
+  const people = Math.max(1, total);
+  const others = Math.max(0, people - 1);
+  const friendWord = others === 1 ? 'friend' : 'friends';
+  return `The group is ${people} people total, including the person planning the day. That is the organizer plus ${others} ${friendWord}. Never say "you plus ${people} friends".`;
+}
+
+const LISTICLE_TITLE = /^\s*\d+\s+(best|top|great|fun|ultimate|essential|must|amazing)\b/i;
+
+export function isListicleListing(name: string): boolean {
+  const title = name.trim();
+  return (
+    LISTICLE_TITLE.test(title) ||
+    /\b(best|top)\s+\d+\b/i.test(title) ||
+    /\b\d+\s+best\b/i.test(title) ||
+    /\b(things to do|group activities|date ideas|bucket list)\b/i.test(title)
+  );
+}
+
+export function isGenericFillerActivity(activity: { id?: string; name: string }): boolean {
+  return Boolean(activity.id?.startsWith('dyn-')) || isListicleListing(activity.name);
+}
+
+export function fillPlanPicks<T extends { id: string; name: string }>(
+  musePicks: T[],
+  candidates: T[],
+  limit = 3
+): { picks: T[]; usableMusePicks: number; degraded: boolean } {
+  const picks: T[] = [];
+  const seen = new Set<string>();
+  for (const pick of musePicks) {
+    if (!pick.id || seen.has(pick.id)) continue;
+    seen.add(pick.id);
+    picks.push(pick);
+    if (picks.length >= limit) break;
+  }
+  const usableMusePicks = picks.length;
+  const pools = [candidates.filter((item) => !isGenericFillerActivity(item)), candidates];
+  for (const pool of pools) {
+    for (const candidate of pool) {
+      if (picks.length >= limit) break;
+      if (!candidate.id || seen.has(candidate.id)) continue;
+      seen.add(candidate.id);
+      picks.push(candidate);
+    }
+  }
+  return { picks, usableMusePicks, degraded: usableMusePicks < limit };
+}
+
+export function shouldCacheMusePlan(input: {
+  truncated: boolean;
+  content: string | null;
+  usableMusePicks: number;
+  rationale?: string | null;
+}): boolean {
+  if (input.truncated || !input.content?.trim()) return false;
+  if (input.usableMusePicks < 3) return false;
+  if (!input.rationale?.trim()) return false;
+  return true;
+}
+
+export function rationaleFromActivities(names: string[], city: string): string {
+  const clean = names.map((name) => name.trim()).filter(Boolean);
+  if (clean.length === 0) return '';
+  if (clean.length === 1) return `${clean[0]} in ${city}.`;
+  const head = clean.slice(0, -1).join(', ');
+  return `${head}, and ${clean[clean.length - 1]} in ${city}.`;
 }
 
 export function museBudgetForPrompt(

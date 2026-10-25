@@ -10,6 +10,7 @@ import {
   getActivityRow,
   isSponsoredTitle,
   listUnenrichedIds,
+  purgeJunkActivities,
   purgeSponsoredActivities,
   searchSavedActivities,
   upsertActivity,
@@ -209,6 +210,58 @@ describe('activity store', () => {
     assert.equal(purgeSponsoredActivities(db), 1);
     assert.equal(getActivityRow(db, ad.id), null);
     assert.ok(getActivityRow(db, kept.id));
+    db.close();
+  });
+
+  it('deletes saved login pages and wrong-city rows', () => {
+    const db = openDb();
+    const now = new Date('2026-10-25T12:00:00.000Z');
+    const login = upsertActivity(
+      db,
+      draft(now, {
+        name: 'Sign in to your Microsoft account',
+        url: 'https://login.live.com/',
+        snippet: 'Outlook and Microsoft account',
+        location: 'Austin, TX (login.live.com)',
+        sourceQuery: 'live jazz in Austin, TX',
+      })
+    );
+    const scores = upsertActivity(
+      db,
+      draft(now, {
+        name: 'LiveScore',
+        url: 'https://www.livescore.com/basketball',
+        snippet: 'Live scores',
+        location: 'Austin, TX (livescore.com)',
+        sourceQuery: 'live jazz in Austin, TX',
+      })
+    );
+    const harlingen = upsertActivity(
+      db,
+      draft(now, {
+        name: 'Harlingen Bakery',
+        url: 'https://harlingenbakery.example/',
+        snippet: 'Family bakery in Harlingen, TX',
+        location: 'Dallas (harlingenbakery.example)',
+        sourceQuery: 'bakeries in Dallas',
+      })
+    );
+    const dallas = upsertActivity(
+      db,
+      draft(now, {
+        name: 'Empire Baking Company',
+        url: 'https://empirebaking.com/dallas',
+        snippet: 'Dallas bakery',
+        location: 'Dallas (empirebaking.com)',
+        sourceQuery: 'bakeries in Dallas',
+      })
+    );
+    assert.equal(purgeJunkActivities(db), 3);
+    assert.equal(getActivityRow(db, login.id), null);
+    assert.equal(getActivityRow(db, scores.id), null);
+    assert.equal(getActivityRow(db, harlingen.id), null);
+    assert.ok(getActivityRow(db, dallas.id));
+    assert.equal(purgeJunkActivities(db), 0);
     db.close();
   });
 });

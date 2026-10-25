@@ -5,7 +5,8 @@ import type { Activity } from '@/types';
 import type { ActivityDraft } from './activityStore.ts';
 import { getActivityRow, upsertActivity } from './activityStore.ts';
 import { discoverActivities } from './discoverActivities.ts';
-import { buildSearchText, enrichStoredActivities } from './discoverySearch.ts';
+import { buildSearchText, enrichStoredActivities, formatCityLabel, resolveDiscoveryLocation } from './discoverySearch.ts';
+import { museCallsToday } from './museUsage.ts';
 import { ENRICH_MAX_TOKENS, ENRICH_REASONING_EFFORT } from './museEnrich.ts';
 import { readMuseContentCache } from './museUsage.ts';
 
@@ -88,6 +89,8 @@ describe('discovery search', () => {
       allowMuse: false,
     });
     assert.match(decodeURIComponent(requested), /tacos in Austin, TX/);
+    assert.match(requested, /engines=duckduckgo/);
+    assert.doesNotMatch(requested, /mode=any/);
     assert.doesNotMatch(decodeURIComponent(requested), /best things to do/);
     assert.equal(found.source, 'openserp');
     assert.deepEqual(
@@ -197,6 +200,142 @@ describe('discovery search', () => {
     assert.equal(done?.venue, 'East Austin');
     assert.equal(done?.estimated_cost, 14);
     assert.equal(calls, 2);
+    db.close();
+  });
+
+  it('asks DuckDuckGo first and falls back to Bing when that page is junk or the wrong city', async () => {
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T12:00:00.000Z');
+    const requested: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      requested.push(url);
+      const engine = new URL(url).searchParams.get('engines');
+      const results =
+        engine === 'duckduckgo'
+          ? [
+              {
+                title: 'Sign in to your Microsoft account',
+                url: 'https://login.live.com/',
+                snippet: 'Outlook, Microsoft account, and Live login',
+                domain: 'login.live.com',
+              },
+              {
+                title: 'Harlingen Bakery',
+                url: 'https://harlingenbakery.example/',
+                snippet: 'Family bakery in Harlingen, TX',
+                domain: 'harlingenbakery.example',
+              },
+              {
+                title: 'LiveScore basketball',
+                url: 'https://www.livescore.com/basketball',
+                snippet: 'Live scores and fixtures',
+                domain: 'livescore.com',
+              },
+            ]
+          : [
+              {
+                title: 'Empire Baking Company',
+                url: 'https://empirebaking.com/dallas',
+                snippet: 'Dallas bakery and breakfast pastries',
+                domain: 'empirebaking.com',
+              },
+            ];
+      return new Response(JSON.stringify({ results }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    const found = await discoverActivities(db, {
+      query: 'bakeries',
+      location: 'Dallas',
+      now,
+      fetchImpl,
+      allowMuse: false,
+    });
+    assert.deepEqual(
+      requested.map((url) => new URL(url).searchParams.get('engines')),
+      ['duckduckgo', 'bing']
+    );
+    assert.equal(requested.some((url) => url.includes('mode=any')), false);
+    assert.equal(found.source, 'openserp');
+    assert.deepEqual(
+      found.activities.map((activity) => activity.name),
+      ['Empire Baking Company']
+    );
+    db.close();
+  });
+
+  it('capitalizes multi-word cities and keeps NYC', () => {
+    assert.equal(formatCityLabel('san antonio'), 'San Antonio');
+    assert.equal(formatCityLabel('new york'), 'New York');
+    assert.equal(formatCityLabel('nyc'), 'NYC');
+    assert.deepEqual(resolveDiscoveryLocation('bakeries in dallas', 'Austin, TX'), {
+      location: 'Dallas',
+      query: 'bakeries',
+    });
+    assert.equal(resolveDiscoveryLocation('jazz', 'san antonio, tx').location, 'San Antonio, TX');
+    assert.equal(buildSearchText('Dallas', 'all', 'bakeries'), 'bakeries in Dallas');
+    assert.equal(buildSearchText('Dallas', 'all', 'bakeries in Dallas'), 'bakeries in Dallas');
+  });
+
+  it('caps new enrichments and does not call Muse again for a saved enrichment', async () => {
+    process.env.MUSE_API_KEY = 'test-key';
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T12:00:00.000Z');
+    const ids = ['one', 'two', 'three', 'four'].map((name) =>
+      upsertActivity(
+        db,
+        draft(now, {
+          name: `Venue ${name}`,
+          url: `https://venues.example/${name}`,
+          snippet: 'Live music in Austin',
+        })
+      ).id
+    );
+    let calls = 0;
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      calls += 1;
+      const body = JSON.parse(String(init?.body)) as { messages?: Array<{ content: string }> };
+      const listings = JSON.parse(body.messages?.[1]?.content || '[]') as Array<{ id: string }>;
+      assert.equal(listings.length, 2);
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify(
+                  listings.map((item) => ({
+                    id: item.id,
+                    kind: 'place',
+                    startDate: null,
+                    endDate: null,
+                    venue: 'Austin',
+                    address: '1 Congress Ave',
+                    estimatedCostPerPerson: 20,
+                    category: 'music',
+                    tags: ['music'],
+                  }))
+                ),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+    await enrichStoredActivities(db, ids, fetchImpl, { maxNew: 2, includeExtras: false });
+    assert.equal(calls, 1);
+    assert.equal(museCallsToday(db, now), 1);
+    const enriched = ids.filter((id) => getActivityRow(db, id)?.enriched_at).length;
+    assert.equal(enriched, 2);
+    await enrichStoredActivities(db, ids.filter((id) => getActivityRow(db, id)?.enriched_at), fetchImpl, {
+      maxNew: 2,
+      includeExtras: false,
+    });
+    assert.equal(calls, 1);
     db.close();
   });
 

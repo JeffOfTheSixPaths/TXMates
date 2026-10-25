@@ -1,0 +1,3 @@
+# Local Next build output and debug logs. Never commit these.
+.next/
+logs.txt

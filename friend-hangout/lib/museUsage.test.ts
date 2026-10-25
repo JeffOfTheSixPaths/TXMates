@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { after, describe, it } from 'node:test';
-import { musePlanCacheKey } from './museCache.ts';
+import { musePlanCacheKey, stablePlanCacheKey } from './museCache.ts';
 import { museComplete } from './museClient.ts';
 import { ENRICH_REASONING_EFFORT, parseMuseEnrichments } from './museEnrich.ts';
-import { BUDGET_MAX_COMPLETION_TOKENS, heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseBudgetCopy, parseMusePlan, PLAN_MAX_COMPLETION_TOKENS, uniquePlanCandidates } from './musePlan.ts';
+import { BUDGET_MAX_COMPLETION_TOKENS, fillPlanPicks, groupSizeInstruction, hangoutGroupSize, heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseBudgetCopy, parseMusePlan, PLAN_MAX_COMPLETION_TOKENS, shouldCacheMusePlan, uniquePlanCandidates } from './musePlan.ts';
 import { museCallsToday, museMaxCallsPerDay, readMuseContentCache, recordMuseCall, tokenUsageFromApi } from './museUsage.ts';
 
 describe('Muse usage guard', () => {
@@ -245,5 +245,54 @@ describe('Muse parsers', () => {
     assert.equal(museBudgetForPrompt({ source: 'simulated', ...numbers })?.figureLabel, 'simulated estimate');
     assert.equal(museBudgetForPrompt({ source: 'nessie', ...numbers, suggestedPerPerson: 40 })?.figureLabel, 'Nessie suggestion');
     assert.equal(museBudgetForPrompt(null), null);
+  });
+
+  it('keeps a plan cache key stable when only discovery order changes', () => {
+    const base = {
+      hangoutId: 'txmates-demo',
+      city: 'Austin, TX',
+      windowStart: '15:00',
+      windowEnd: '20:30',
+      budgetTier: 50,
+      interests: ['music', 'food'],
+      candidateIds: ['venue-b', 'venue-a', 'event-c'],
+      viewType: 'overall',
+    };
+    assert.equal(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, candidateIds: ['event-c', 'venue-a', 'venue-b'], interests: ['food', 'music'] }));
+    assert.equal(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, city: '  austin,   tx ' }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, city: 'Dallas, TX' }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, candidateIds: ['venue-a', 'venue-b'] }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, budgetTier: 40 }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, windowEnd: '21:00' }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, hangoutId: 'other-hangout' }));
+    assert.notEqual(stablePlanCacheKey(base), stablePlanCacheKey({ ...base, viewType: 'cheapest' }));
+  });
+
+  it('does not cache a cut-off, empty, or short plan, and fills from real places', () => {
+    assert.equal(shouldCacheMusePlan({ truncated: true, content: '{"picks":[]}', usableMusePicks: 3, rationale: 'A plan.' }), false);
+    assert.equal(shouldCacheMusePlan({ truncated: false, content: '   ', usableMusePicks: 3, rationale: 'A plan.' }), false);
+    assert.equal(shouldCacheMusePlan({ truncated: false, content: '{}', usableMusePicks: 2, rationale: 'A plan.' }), false);
+    assert.equal(shouldCacheMusePlan({ truncated: false, content: '{}', usableMusePicks: 3, rationale: '' }), false);
+    assert.equal(shouldCacheMusePlan({ truncated: false, content: '{}', usableMusePicks: 3, rationale: 'Elephant Room, then tacos.' }), true);
+
+    const muse = [{ id: 'room', name: 'The Elephant Room' }];
+    const candidates = [
+      { id: 'list', name: '18 Best Group Activities in Austin' },
+      { id: 'dyn', name: 'Austin Central Food Hall & Artisan Stalls' },
+      { id: 'tacos', name: "Torchy's Tacos" },
+      { id: 'room', name: 'The Elephant Room' },
+    ];
+    candidates[1].id = 'dyn-austin-1';
+    const filled = fillPlanPicks(muse, candidates);
+    assert.equal(filled.degraded, true);
+    assert.equal(filled.usableMusePicks, 1);
+    assert.deepEqual(
+      filled.picks.map((item) => item.id),
+      ['room', 'tacos', 'list']
+    );
+    assert.equal(hangoutGroupSize({ friendCount: 8, friends: [{}, {}, {}, {}] }), 4);
+    assert.match(groupSizeInstruction(4), /4 people total/);
+    assert.match(groupSizeInstruction(4), /organizer plus 3 friends/);
+    assert.match(groupSizeInstruction(4), /Never say "you plus 4 friends"/);
   });
 });

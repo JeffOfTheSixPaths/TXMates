@@ -59,12 +59,15 @@ export default function Home() {
         aiRationale: string;
         aiIcebreaker?: string;
         aiCoordinationTip?: string;
+        budgetExplanation?: string;
+        budgetTips?: string[];
         isLive: boolean;
         model: string;
         cached?: boolean;
         cachedAt?: string;
         activities?: Activity[];
         limited?: boolean;
+        filled?: boolean;
       } | null
     >
   >({
@@ -193,19 +196,25 @@ export default function Home() {
 
       if (res.ok && !isCancelled()) {
         const data = await res.json();
-        if (data.isLive || data.limited) {
+        if (data.isLive || data.limited || data.filled) {
+          const budgetTips = Array.isArray(data.budgetTips)
+            ? data.budgetTips.filter((tip: unknown): tip is string => typeof tip === 'string' && tip.trim().length > 0)
+            : undefined;
           setLiveAiData((prev) => ({
             ...prev,
             [view]: {
               aiRationale: data.aiRationale || '',
               aiIcebreaker: data.aiIcebreaker,
               aiCoordinationTip: data.aiCoordinationTip,
+              budgetExplanation: typeof data.budgetExplanation === 'string' ? data.budgetExplanation : undefined,
+              budgetTips,
               isLive: Boolean(data.isLive),
               model: data.model || 'muse-spark-1.3',
               cached: Boolean(data.cached),
               cachedAt: typeof data.cachedAt === 'string' ? data.cachedAt : undefined,
               activities: Array.isArray(data.activities) ? data.activities : undefined,
               limited: Boolean(data.limited),
+              filled: Boolean(data.filled),
             },
           }));
         }
@@ -235,10 +244,11 @@ export default function Home() {
   const currentPlan = useMemo(() => {
     const base = generatePlan(preferences, activeView, nessie?.estimate);
     const live = liveAiData[activeView];
-    if (live && (live.isLive || live.limited)) {
+    if (live && (live.isLive || live.limited || live.filled)) {
       const activities = live.activities?.length ? live.activities : base.activities;
       const totalCostPerPerson = activities.reduce((sum, activity) => sum + activity.estimatedCostPerPerson, 0);
-      const friendCount = preferences.friendCount || preferences.friends.length || 1;
+      const friendCount = preferences.friends.length || preferences.friendCount || 1;
+      const museMoney = [live.budgetExplanation, ...(live.budgetTips || [])].filter(Boolean).join(' ');
       return {
         ...base,
         activities,
@@ -253,6 +263,9 @@ export default function Home() {
         museFromCache: live.cached,
         museCachedAt: live.cachedAt,
         museLimited: Boolean(live.limited),
+        nessieFinancialInsight: museMoney
+          ? { ...base.nessieFinancialInsight, budgetTip: museMoney }
+          : base.nessieFinancialInsight,
       };
     }
     return base;
