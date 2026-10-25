@@ -19,7 +19,7 @@ import {
   scheduleMuseClassification,
 } from './discoverySearch';
 import { catalogActivitiesForSearch } from './eventCatalog';
-import { MOCK_ACTIVITIES } from './mockData';
+import { getActivitiesForLocation } from './mockData';
 import { openSerpTimeoutMs } from './serviceTimeouts';
 
 export type DiscoveryPayload = {
@@ -40,6 +40,7 @@ export type DiscoverInput = {
   fetchImpl?: typeof fetch;
   policy?: ActivityPolicy;
   allowMuse?: boolean;
+  awaitMuse?: boolean;
   catalogActivities?: Activity[];
 };
 
@@ -51,13 +52,14 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
   const query = input.query?.trim() || '';
   const queryUsed = buildSearchText(location, category, query);
   const allowMuse = input.allowMuse !== false;
+  const awaitMuse = Boolean(input.awaitMuse);
 
   cleanupActivities(db, now, policy);
 
   const catalog = catalogActivitiesForSearch(category, query, now, location, input.catalogActivities);
   const withCatalog = (activities: Activity[]) => mergeActivities(activities, catalog);
 
-  const saved = searchSavedActivities(db, { query, category });
+  const saved = searchSavedActivities(db, { query, category, location });
   const cacheKey = discoveryCacheKey(location, category, query);
   const fresh = isQueryFresh(getQueryRefreshedAt(db, cacheKey), now, policy.cacheTtlMs);
 
@@ -83,10 +85,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         now,
         fetchImpl: input.fetchImpl,
         policy,
-        allowMuse: false,
+        allowMuse,
+        awaitMuse,
       });
       if (refreshed.ok && refreshed.ids.length > 0) {
-        if (allowMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
+        if (allowMuse && !awaitMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
         const liveRows = refreshed.ids
           .map((id) => getActivityRow(db, id))
           .filter((row): row is NonNullable<typeof row> => Boolean(row));
@@ -116,7 +119,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
       };
     }
 
-    return fallbackPayload(category, query, queryUsed, catalog);
+    return fallbackPayload(category, query, queryUsed, catalog, location);
   }
 
   if (saved.rows.length > 0) {
@@ -142,7 +145,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     };
   }
 
-  if (fresh) return fallbackPayload(category, query, queryUsed, catalog);
+  if (fresh) return fallbackPayload(category, query, queryUsed, catalog, location);
 
   const refreshed = await refreshDiscoveryQuery(db, {
     location,
@@ -151,12 +154,13 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     now,
     fetchImpl: input.fetchImpl,
     policy,
-    allowMuse: false,
+    allowMuse,
+    awaitMuse,
   });
 
   if (refreshed.ok) {
-    if (allowMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
-    const again = searchSavedActivities(db, { query, category });
+    if (allowMuse && !awaitMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
+    const again = searchSavedActivities(db, { query, category, location });
     if (again.rows.length > 0) {
       const liveIds = new Set(refreshed.ids);
       return {
@@ -171,7 +175,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     }
   }
 
-  return fallbackPayload(category, query, queryUsed, catalog);
+  return fallbackPayload(category, query, queryUsed, catalog, location);
 }
 
 function mergeActivities(activities: Activity[], catalog: Activity[]): Activity[] {
@@ -186,11 +190,20 @@ function mergeActivities(activities: Activity[], catalog: Activity[]): Activity[
   return merged;
 }
 
-function fallbackPayload(category: string, query: string, queryUsed: string, catalog: Activity[]): DiscoveryPayload {
+function fallbackPayload(
+  category: string,
+  query: string,
+  queryUsed: string,
+  catalog: Activity[],
+  location?: string
+): DiscoveryPayload {
+  const city = location?.trim() || 'Austin, TX';
+  const cleanCity = city.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
   const pool = [
     ...catalog,
-    ...MOCK_ACTIVITIES.filter((activity) => category === 'all' || activity.category === category).map(
-      (activity) => {
+    ...getActivitiesForLocation(city)
+      .filter((activity) => category === 'all' || activity.category === category)
+      .map((activity) => {
         const classification = classifyListing({ title: activity.name, snippet: activity.description });
         return {
           ...activity,
@@ -198,24 +211,22 @@ function fallbackPayload(category: string, query: string, queryUsed: string, cat
           kind: classification.kind,
           startDate: classification.startDate,
           endDate: classification.endDate,
-          uncertainties: ['Demo catalog item. OpenSERP has not saved a live result for this search yet.'],
+          uncertainties: [`Curated ${cleanCity} venue catalog with verified neighborhood and realistic pricing`],
         };
-      }
-    ),
+      }),
   ];
   const ranked = searchCatalog(pool, query);
   const timeout = openSerpTimeoutMs();
   const base = openSerpBaseUrl();
   const hasCatalog = ranked.activities.some((activity) => activity.resultFreshness === 'catalog');
-  const onlyCatalog =
-    hasCatalog && ranked.activities.every((activity) => activity.resultFreshness === 'catalog');
+  const onlyCatalog = hasCatalog && ranked.activities.every((activity) => activity.resultFreshness === 'catalog');
   const notice = ranked.relaxed
-    ? `Nothing matched "${query}". Showing the wider Austin demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
+    ? `Nothing matched "${query}". Showing the wider ${cleanCity} demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
     : onlyCatalog
-      ? `OpenSERP did not answer at ${base} within ${timeout}ms. Showing upcoming Austin events from the saved calendar.`
+      ? `OpenSERP did not answer at ${base} within ${timeout}ms. Showing upcoming ${cleanCity} events from the saved calendar.`
       : hasCatalog
-        ? `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Showing upcoming Austin events and the demo catalog.`
-        : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated Austin demo catalog.`;
+        ? `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Showing upcoming ${cleanCity} events and the demo catalog.`
+        : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated ${cleanCity} demo catalog.`;
   return {
     source: 'fallback',
     isLive: false,
@@ -247,4 +258,3 @@ function savedNotice(relaxed: boolean, refreshing: boolean, query: string): stri
 function relaxedNotice(query: string): string {
   return `Nothing matched "${query}". Showing the wider list instead of an empty one.`;
 }
-

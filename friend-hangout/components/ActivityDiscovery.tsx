@@ -23,6 +23,8 @@ interface ActivityDiscoveryProps {
   onClearShortlist: () => void;
   onApplyShortlist: () => void;
   maxBudget: number;
+  location?: string;
+  onLocationChange?: (location: string) => void;
 }
 
 export function ActivityDiscovery({
@@ -31,7 +33,10 @@ export function ActivityDiscovery({
   onClearShortlist,
   onApplyShortlist,
   maxBudget,
+  location,
+  onLocationChange,
 }: ActivityDiscoveryProps) {
+  const currentLocation = location || 'Austin, TX';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [budgetFilter, setBudgetFilter] = useState<number | 'all'>('all');
@@ -54,6 +59,7 @@ export function ActivityDiscovery({
         const params = new URLSearchParams();
         if (searchQuery.trim()) params.set('q', searchQuery.trim());
         if (selectedCategory !== 'all') params.set('category', selectedCategory);
+        if (currentLocation.trim()) params.set('location', currentLocation.trim());
 
         const res = await fetch(`/api/discovery?${params.toString()}`);
         if (res.ok && !cancelled) {
@@ -95,7 +101,7 @@ export function ActivityDiscovery({
       clearTimeout(timer);
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, currentLocation]);
 
   const shortlistedIds = useMemo(
     () => new Set(shortlist.map((a) => a.id)),
@@ -142,7 +148,7 @@ export function ActivityDiscovery({
     <section aria-busy={isLoading}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-ink">Austin spots</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-ink">{currentLocation.split(',')[0].trim() || 'Local'} spots</h2>
           <p className="mt-1 max-w-prose text-base text-ink-soft">
             Saved spots show up immediately. OpenSERP runs again when this search is more than a few hours old.
           </p>
@@ -198,7 +204,18 @@ export function ActivityDiscovery({
       )}
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-12">
-        <div className="relative sm:col-span-6">
+        <div className="relative sm:col-span-3">
+          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" aria-hidden />
+          <input
+            type="text"
+            value={currentLocation}
+            onChange={(e) => onLocationChange?.(e.target.value)}
+            placeholder="Austin, TX"
+            aria-label="City or area"
+            className="w-full border border-seam bg-sheet py-2.5 pl-10 pr-3 text-base text-ink placeholder:text-ink-soft"
+          />
+        </div>
+        <div className="relative sm:col-span-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" aria-hidden />
           <input
             type="search"
@@ -209,11 +226,11 @@ export function ActivityDiscovery({
               setSearchQuery(next);
             }}
             placeholder="Brisket, arcade, lake, jazz"
-            aria-label="Search Austin venues"
+            aria-label="Search venues"
             className="w-full border border-seam bg-sheet py-2.5 pl-10 pr-3 text-base text-ink placeholder:text-ink-soft"
           />
         </div>
-        <label className="flex items-center gap-2 text-base text-ink-soft sm:col-span-3">
+        <label className="flex items-center gap-2 text-base text-ink-soft sm:col-span-2">
           <span className="shrink-0">Max</span>
           <select
             value={budgetFilter === 'all' ? 'all' : budgetFilter}

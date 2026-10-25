@@ -53,6 +53,7 @@ export type RefreshInput = {
   fetchImpl?: typeof fetch;
   policy?: ActivityPolicy;
   allowMuse?: boolean;
+  awaitMuse?: boolean;
 };
 
 const inflight = new Map<string, Promise<void>>();
@@ -85,6 +86,8 @@ export async function refreshDiscoveryQuery(
   const category = input.category.trim() || 'all';
   const query = input.query.trim();
   const searchText = buildSearchText(location, category, query);
+  const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
+  const cityLabel = cleanCity.charAt(0).toUpperCase() + cleanCity.slice(1);
   const hits = await fetchOpenSerp(searchText, input.fetchImpl);
   if (!hits) return { ok: false, ids: [] };
 
@@ -106,7 +109,7 @@ export async function refreshDiscoveryQuery(
       category: finalCategory,
       categoryLabel: category !== 'all' ? CATEGORY_LABELS[finalCategory] || inferred.label : inferred.label,
       location: `${location} (${hit.domain || 'Local venue'})`,
-      neighborhood: hit.domain || 'Austin area',
+      neighborhood: hit.domain || `${cityLabel} Area`,
       estimatedCostPerPerson: estimateCost(finalCategory),
       durationMinutes: 90,
       sourceQuery: searchText,
@@ -118,7 +121,13 @@ export async function refreshDiscoveryQuery(
   }
 
   markQueryRefreshed(db, { location, category, query, now });
-  if (input.allowMuse) scheduleMuseClassification(db, ids, input.fetchImpl);
+  if (input.allowMuse) {
+    if (input.awaitMuse) {
+      await enrichStoredActivities(db, ids.slice(0, 6), input.fetchImpl);
+    } else {
+      scheduleMuseClassification(db, ids, input.fetchImpl);
+    }
+  }
   return { ok: true, ids };
 }
 
@@ -278,7 +287,7 @@ function estimateCost(category: ActivityCategory): number {
 
 export function cleanTitle(raw: string): string {
   return raw
-    .replace(/\s*[-|–]\s*(Yelp|TripAdvisor|Eater Austin|Austin Chronicle|The Infatuation|Do512|Austin Texas).*$/i, '')
+    .replace(/\s*[-|–]\s*(Yelp|TripAdvisor|Eater\b.*|Austin Chronicle|The Infatuation|Timeout|Chronicle\b.*|Do512|Austin Texas|Guide).*$/i, '')
     .trim();
 }
 

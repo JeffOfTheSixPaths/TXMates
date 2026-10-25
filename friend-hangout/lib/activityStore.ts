@@ -268,15 +268,26 @@ export function getActivityRow(db: DatabaseSync, id: string): ActivityRow | null
 
 export function searchSavedActivities(
   db: DatabaseSync,
-  input: { query: string; category: string }
+  input: { query: string; category: string; location?: string }
 ): { rows: ActivityRow[]; relaxed: boolean } {
   ensureActivityTables(db);
   const category = input.category || 'all';
-  const rows = db
+  let rows = db
     .prepare(
       `SELECT * FROM activities WHERE status = 'active' AND (? = 'all' OR category = ?) ORDER BY last_seen DESC`
     )
     .all(category, category) as ActivityRow[];
+
+  if (input.location?.trim()) {
+    const loc = input.location.trim().toLowerCase();
+    const city = loc.split(',')[0].trim().toLowerCase();
+    rows = rows.filter(
+      (row) =>
+        row.location.toLowerCase().includes(city) ||
+        row.source_query.toLowerCase().includes(city)
+    );
+  }
+
   const searchable = rows.map((row) => ({
     row,
     name: row.name,
