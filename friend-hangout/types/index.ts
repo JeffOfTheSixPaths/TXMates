@@ -48,6 +48,30 @@ export interface TimeSlot {
   label?: string;    // e.g. "Afternoon"
 }
 
+export interface CalendarBusyEvent {
+  summary: string;
+  startTime: string; // e.g. "09:30"
+  endTime: string;   // e.g. "11:00"
+  isAllDay?: boolean;
+  date?: string;
+}
+
+export interface FreeWindow {
+  startTime: string; // e.g. "13:00"
+  endTime: string;   // e.g. "21:30"
+  durationMinutes: number;
+}
+
+export interface FriendCalendarSyncDetails {
+  source: 'google' | 'ical' | 'upload' | 'demo';
+  syncedAt: string;
+  eventsDetected: number;
+  busyEvents: CalendarBusyEvent[];
+  freeWindows: FreeWindow[];
+  suggestedStart: string;
+  suggestedEnd: string;
+}
+
 export interface Friend {
   id: string;
   name: string;
@@ -58,6 +82,8 @@ export interface Friend {
   status?: 'pending' | 'submitted';
   submittedAt?: string;
   nessieCustomerId?: string;
+  calendarSynced?: boolean;
+  calendarSyncDetails?: FriendCalendarSyncDetails;
 }
 
 export interface SquadPricePointResponse {

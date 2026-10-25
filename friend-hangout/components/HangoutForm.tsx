@@ -8,15 +8,18 @@ import {
   AlertCircle,
   Calendar,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
   Copy,
   ExternalLink,
   Link2,
+  Loader2,
   MapPin,
   Plus,
   Share2,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -59,9 +62,108 @@ export function HangoutForm({
   const [copiedFriendId, setCopiedFriendId] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copiedGeneralLink, setCopiedGeneralLink] = useState(false);
+  const [batchSyncLoading, setBatchSyncLoading] = useState(false);
+  const [syncAllNotice, setSyncAllNotice] = useState<string | null>(null);
+  const [singleSyncLoadingId, setSingleSyncLoadingId] = useState<string | null>(null);
 
   const overlap = calculateAvailabilityOverlap(preferences.friends);
   const hangoutId = preferences.id || 'txmates-demo';
+
+  const handleBatchSyncGoogleCalendars = async () => {
+    setBatchSyncLoading(true);
+    setSyncAllNotice(null);
+    try {
+      const res = await fetch('/api/calendar/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hangoutId: preferences.id || 'txmates-demo',
+          friends: preferences.friends,
+          date: preferences.date,
+          timePreference: preferences.timePreference,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to sync Google Calendars');
+      }
+
+      onChange({
+        ...preferences,
+        friends: data.updatedFriends,
+      });
+
+      setSyncAllNotice(data.summary);
+      setTimeout(() => setSyncAllNotice(null), 8000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Batch calendar sync failed';
+      setValidationError(msg);
+    } finally {
+      setBatchSyncLoading(false);
+    }
+  };
+
+  const handleSyncSingleFriendCalendar = async (friend: Friend) => {
+    setSingleSyncLoadingId(friend.id);
+    try {
+      const res = await fetch('/api/calendar/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          friend,
+          date: preferences.date,
+          mode: 'auto',
+          timePreference: preferences.timePreference,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to sync Google Calendar');
+      }
+
+      const updatedFriends = preferences.friends.map((f) => {
+        if (f.id !== friend.id) return f;
+        return {
+          ...f,
+          status: 'submitted' as const,
+          calendarSynced: true,
+          calendarSyncDetails: {
+            source: 'demo' as const,
+            syncedAt: new Date().toISOString(),
+            eventsDetected: data.busyEvents.length,
+            busyEvents: data.busyEvents,
+            freeWindows: data.freeWindows,
+            suggestedStart: data.suggestedStartTime,
+            suggestedEnd: data.suggestedEndTime,
+          },
+          availabilitySlots: [
+            {
+              id: f.availabilitySlots[0]?.id || `slot-${f.id}`,
+              startTime: data.suggestedStartTime,
+              endTime: data.suggestedEndTime,
+            },
+          ],
+        };
+      });
+
+      onChange({
+        ...preferences,
+        friends: updatedFriends,
+      });
+
+      setSyncAllNotice(
+        `Synced Google Calendar for ${friend.name}: free ${data.suggestedStartTime}–${data.suggestedEndTime}.`
+      );
+      setTimeout(() => setSyncAllNotice(null), 6000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Calendar sync failed';
+      setValidationError(msg);
+    } finally {
+      setSingleSyncLoadingId(null);
+    }
+  };
 
   // Toggle interest category
   const toggleInterest = (category: ActivityCategory) => {
@@ -339,6 +441,24 @@ export function HangoutForm({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={handleBatchSyncGoogleCalendars}
+                disabled={batchSyncLoading}
+                className="inline-flex min-h-11 items-center gap-1.5 bg-tomato px-3 text-base font-semibold text-white transition hover:bg-tomato/90 disabled:opacity-60"
+              >
+                {batchSyncLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Syncing Calendars…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 text-sun" aria-hidden />
+                    Auto-Import Google Calendars
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowInviteModal(true)}
                 className="inline-flex min-h-11 items-center gap-1.5 bg-ink px-3 text-base font-semibold text-paper"
               >
@@ -365,6 +485,13 @@ export function HangoutForm({
             </div>
           </div>
 
+          {syncAllNotice && (
+            <div className="mt-3 flex items-start gap-2 border border-leaf/40 bg-leaf/10 p-3 text-sm font-semibold text-leaf">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>{syncAllNotice}</span>
+            </div>
+          )}
+
           {showAdvancedFriends && (
             <ul className="mt-4 border-t border-seam">
               {preferences.friends.map((friend, idx) => (
@@ -388,17 +515,58 @@ export function HangoutForm({
                               Nessie
                             </span>
                           )}
+                          {friend.calendarSynced && (
+                            <span className="shrink-0 border border-leaf/40 bg-leaf/10 px-1.5 py-0.5 text-[10px] font-semibold text-leaf">
+                              GCal
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-ink-soft">
-                          {idx === 0
-                            ? "Organizer"
-                            : friend.status === "submitted"
-                              ? "Submitted from their link"
-                              : "Waiting on a link"}
+                          {friend.calendarSynced ? (
+                            <span className="inline-flex items-center gap-1 text-leaf font-medium">
+                              <CheckCircle2 className="h-3 w-3" />
+                              GCal Synced ({friend.calendarSyncDetails?.eventsDetected || 0} busy events)
+                            </span>
+                          ) : idx === 0 ? (
+                            "Organizer"
+                          ) : friend.status === "submitted" ? (
+                            "Submitted from their link"
+                          ) : (
+                            "Waiting on a link"
+                          )}
                         </p>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSyncSingleFriendCalendar(friend)}
+                        disabled={singleSyncLoadingId === friend.id}
+                        className={`inline-flex min-h-11 items-center gap-1 border px-2 text-sm font-semibold ${
+                          friend.calendarSynced
+                            ? 'border-leaf/40 bg-leaf/10 text-leaf'
+                            : 'border-seam bg-pine text-ink hover:bg-sheet'
+                        }`}
+                        title={
+                          friend.calendarSynced
+                            ? `Google Calendar synced (${friend.calendarSyncDetails?.eventsDetected || 0} busy events)`
+                            : `Import Google Calendar for ${friend.name}`
+                        }
+                      >
+                        {singleSyncLoadingId === friend.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : friend.calendarSynced ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 text-leaf" aria-hidden />
+                            GCal Synced
+                          </>
+                        ) : (
+                          <>
+                            <Calendar className="h-4 w-4 text-tomato" aria-hidden />
+                            Sync GCal
+                          </>
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleCopyFriendLink(friend.id)}

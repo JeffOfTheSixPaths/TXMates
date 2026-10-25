@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { HangoutPreferences, Friend, ActivityCategory } from '@/types';
+import type { HangoutPreferences, Friend, ActivityCategory, FriendCalendarSyncDetails } from '@/types';
 import { ensureActivityTables, purgeJunkActivities } from './activityStore';
 import { ensureItineraryLockColumns } from './itineraryLock';
 import { ensureMuseCache } from './museCache';
@@ -15,6 +15,20 @@ if (!fs.existsSync(DB_DIR)) {
 const DB_PATH = path.join(DB_DIR, 'txmates.db');
 
 let dbInstance: DatabaseSync | null = null;
+
+export function ensureFriendCalendarColumns(db: DatabaseSync) {
+  const columns = new Set(
+    (db.prepare(`PRAGMA table_info(friend_availabilities)`).all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  if (!columns.has('calendar_synced')) {
+    db.exec(`ALTER TABLE friend_availabilities ADD COLUMN calendar_synced INTEGER DEFAULT 0`);
+  }
+  if (!columns.has('calendar_sync_details')) {
+    db.exec(`ALTER TABLE friend_availabilities ADD COLUMN calendar_sync_details TEXT`);
+  }
+}
 
 export function initHangoutDb(db: DatabaseSync) {
   db.exec('PRAGMA journal_mode = WAL;');
@@ -43,6 +57,8 @@ export function initHangoutDb(db: DatabaseSync) {
         top_interests TEXT,
         status TEXT DEFAULT 'pending',
         submitted_at DATETIME,
+        calendar_synced INTEGER DEFAULT 0,
+        calendar_sync_details TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (hangout_id) REFERENCES hangouts(id) ON DELETE CASCADE,
         UNIQUE (hangout_id, friend_id)
@@ -53,6 +69,7 @@ export function initHangoutDb(db: DatabaseSync) {
   ensureMuseCache(db);
   ensureMuseUsage(db);
   ensureItineraryLockColumns(db);
+  ensureFriendCalendarColumns(db);
 }
 
 export function getDb(): DatabaseSync {
@@ -87,9 +104,12 @@ interface FriendRow {
   top_interests: string | null;
   status: 'pending' | 'submitted';
   submitted_at: string | null;
+  calendar_synced: number | null;
+  calendar_sync_details: string | null;
 }
 
 export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = getDb()): string {
+  ensureFriendCalendarColumns(db);
   const id = hangout.id || 'txmates-demo';
 
   const upsertHangout = db.prepare(`
@@ -118,16 +138,19 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
   const upsertFriend = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at
+      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = excluded.friend_name,
       start_time = excluded.start_time,
       end_time = excluded.end_time,
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
-      status = CASE WHEN friend_availabilities.status = 'submitted' THEN 'submitted' ELSE excluded.status END
+      status = CASE WHEN friend_availabilities.status = 'submitted' THEN 'submitted' ELSE excluded.status END,
+      calendar_synced = coalesce(excluded.calendar_synced, friend_availabilities.calendar_synced),
+      calendar_sync_details = coalesce(excluded.calendar_sync_details, friend_availabilities.calendar_sync_details)
   `);
 
   hangout.friends.forEach((f) => {
@@ -144,7 +167,9 @@ export function saveHangoutToDb(hangout: HangoutPreferences, db: DatabaseSync = 
       f.budgetPreference || null,
       f.topInterests ? JSON.stringify(f.topInterests) : null,
       f.status || 'pending',
-      f.submittedAt || null
+      f.submittedAt || null,
+      f.calendarSynced ? 1 : 0,
+      f.calendarSyncDetails ? JSON.stringify(f.calendarSyncDetails) : null
     );
   });
 
@@ -207,6 +232,7 @@ export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
 
   if (!row) return null;
 
+  ensureFriendCalendarColumns(db);
   const getFriends = db.prepare(`SELECT * FROM friend_availabilities WHERE hangout_id = ? ORDER BY created_at ASC`);
   const friendRows = getFriends.all(hangoutId) as unknown as FriendRow[];
 
@@ -225,6 +251,8 @@ export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
     topInterests: fr.top_interests ? JSON.parse(fr.top_interests) : [],
     status: fr.status,
     submittedAt: fr.submitted_at || undefined,
+    calendarSynced: fr.calendar_synced === 1,
+    calendarSyncDetails: fr.calendar_sync_details ? JSON.parse(fr.calendar_sync_details) : undefined,
   }));
 
   return {
@@ -249,9 +277,12 @@ export function updateFriendSubmission(
     endTime: string;
     budgetPreference?: number;
     topInterests?: ActivityCategory[];
+    calendarSynced?: boolean;
+    calendarSyncDetails?: FriendCalendarSyncDetails;
   }
 ): boolean {
   const db = getDb();
+  ensureFriendCalendarColumns(db);
 
   const checkHangout = db.prepare('SELECT id FROM hangouts WHERE id = ?');
   let hangout = checkHangout.get(hangoutId);
@@ -309,9 +340,10 @@ export function updateFriendSubmission(
   const updateStmt = db.prepare(`
     INSERT INTO friend_availabilities (
       id, hangout_id, friend_id, friend_name, avatar_color,
-      start_time, end_time, budget_preference, top_interests, status, submitted_at
+      start_time, end_time, budget_preference, top_interests, status, submitted_at,
+      calendar_synced, calendar_sync_details
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)
     ON CONFLICT(hangout_id, friend_id) DO UPDATE SET
       friend_name = coalesce(?, friend_availabilities.friend_name),
       start_time = excluded.start_time,
@@ -319,7 +351,9 @@ export function updateFriendSubmission(
       budget_preference = coalesce(excluded.budget_preference, friend_availabilities.budget_preference),
       top_interests = coalesce(excluded.top_interests, friend_availabilities.top_interests),
       status = 'submitted',
-      submitted_at = excluded.submitted_at
+      submitted_at = excluded.submitted_at,
+      calendar_synced = coalesce(excluded.calendar_synced, friend_availabilities.calendar_synced),
+      calendar_sync_details = coalesce(excluded.calendar_sync_details, friend_availabilities.calendar_sync_details)
   `);
 
   updateStmt.run(
@@ -333,6 +367,8 @@ export function updateFriendSubmission(
     data.budgetPreference || null,
     data.topInterests ? JSON.stringify(data.topInterests) : null,
     now,
+    data.calendarSynced !== undefined ? (data.calendarSynced ? 1 : 0) : null,
+    data.calendarSyncDetails ? JSON.stringify(data.calendarSyncDetails) : null,
     data.friendName || null
   );
 
