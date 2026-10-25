@@ -13,6 +13,8 @@ import {
   When2MeetCell,
 } from "@/lib/when2meet";
 import { formatFriendlyDate } from "@/lib/planner";
+import { availabilityStrong } from "@/lib/availabilityHeat";
+import { heatStyle } from "@/components/OverlapRunner";
 
 interface When2MeetGridProps {
   dates: string[];
@@ -22,6 +24,7 @@ interface When2MeetGridProps {
   editable?: boolean;
   onSlotsChange?: (slots: TimeSlot[]) => void;
   title?: string;
+  resetToken?: number;
 }
 
 export function When2MeetGrid({
@@ -31,6 +34,7 @@ export function When2MeetGrid({
   editable = false,
   onSlotsChange,
   title = "Group Availability Heatmap (When2Meet)",
+  resetToken = 0,
 }: When2MeetGridProps) {
   // Compute group matrix
   const matrix = useMemo(() => {
@@ -47,6 +51,11 @@ export function When2MeetGrid({
 
   // Editable personal grid - uses draft state while editing, falls back to derived userSlots grid
   const [draftGrid, setDraftGrid] = useState<Record<string, Record<number, boolean>> | null>(null);
+  const [appliedToken, setAppliedToken] = useState(resetToken);
+  if (resetToken !== appliedToken) {
+    setAppliedToken(resetToken);
+    setDraftGrid(null);
+  }
 
   const personalGrid = useMemo(() => {
     return draftGrid ?? slotsToHourGrid(userSlots, dates);
@@ -111,25 +120,6 @@ export function When2MeetGrid({
     }
   };
 
-  // Color generator for heatmap cells
-  const getCellBgClass = (cell?: When2MeetCell) => {
-    if (!cell || cell.totalCount === 0 || cell.availableCount === 0) {
-      return "bg-pine/30 text-ink-soft hover:border-seam";
-    }
-    const ratio = cell.ratio;
-    if (ratio === 1) {
-      return "bg-emerald-600 text-white font-bold hover:bg-emerald-500";
-    } else if (ratio >= 0.75) {
-      return "bg-emerald-500 text-white font-semibold hover:bg-emerald-400";
-    } else if (ratio >= 0.5) {
-      return "bg-emerald-400 text-ink font-semibold hover:bg-emerald-300";
-    } else if (ratio >= 0.25) {
-      return "bg-emerald-200 text-ink hover:bg-emerald-100";
-    } else {
-      return "bg-emerald-100 text-ink hover:bg-emerald-50";
-    }
-  };
-
   if (dates.length === 0) {
     return (
       <div className="border border-seam bg-sheet p-5 text-center text-ink-soft">
@@ -139,16 +129,14 @@ export function When2MeetGrid({
   }
 
   return (
-    <div className="border border-seam bg-sheet p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-seam pb-3">
+    <div className="bg-pine p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-xl font-semibold text-ink">
             <Users className="h-5 w-5 text-ink" />
             {title}
           </h3>
-          <p className="mt-0.5 text-xs text-ink-soft">
-            Hover over time slots to see which friends are free. Darker green indicates higher friend overlap.
-          </p>
+          <p className="mt-1 text-sm text-ink-soft">Hover a slot to see who is free.</p>
         </div>
 
         {editable && (
@@ -180,10 +168,8 @@ export function When2MeetGrid({
       </div>
 
       {editable && viewMode === "personal" && (
-        <div className="mt-3 rounded border border-sun/50 bg-sun/15 p-2.5 text-xs text-ink flex items-center justify-between">
-          <span>
-            <strong>Drag-to-paint mode:</strong> Click and drag across time blocks to toggle your availability.
-          </span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 bg-sun/40 px-3 py-2 text-sm text-ink">
+          <span>Drag across hours to paint when you are free.</span>
           <button
             type="button"
             onClick={() => {
@@ -197,7 +183,7 @@ export function When2MeetGrid({
               setDraftGrid(allAvailable);
               onSlotsChange?.(hourGridToSlots(allAvailable, dates));
             }}
-            className="rounded border border-ink/30 bg-sheet px-2 py-0.5 text-[11px] font-semibold text-ink hover:bg-pine"
+            className="bg-sheet px-2 py-1 text-xs font-semibold text-ink hover:bg-pine"
           >
             Mark All Free
           </button>
@@ -218,7 +204,7 @@ export function When2MeetGrid({
             {dates.map((date) => (
               <div key={date} className="rounded bg-pine/60 py-1.5 px-1">
                 <div>{formatFriendlyDate(date)}</div>
-                <div className="text-[10px] font-normal text-ink-soft">{date}</div>
+                <div className="text-xs font-normal text-ink-soft">{date}</div>
               </div>
             ))}
           </div>
@@ -253,37 +239,39 @@ export function When2MeetGrid({
                           key={`${date}-${hour}`}
                           onMouseDown={() => handleCellMouseDown(date, hour)}
                           onMouseEnter={() => handleCellMouseEnter(date, hour)}
-                          className={`flex h-8 cursor-pointer select-none items-center justify-center rounded border text-xs transition-colors ${
-                            isPersonalAvailable
-                              ? "border-emerald-600 bg-emerald-500 font-bold text-white shadow-sm"
-                              : "border-seam/50 bg-pine/30 text-ink-soft/60 hover:bg-pine"
+                          className={`avail-heat flex h-8 cursor-pointer select-none items-center justify-center border text-sm ${
+                            isPersonalAvailable ? "font-semibold" : "text-ink-soft"
                           }`}
+                          data-strong={isPersonalAvailable ? "true" : "false"}
+                          style={heatStyle(isPersonalAvailable ? 1 : 0, 1)}
                           title={`${date} ${label}: ${isPersonalAvailable ? "Available" : "Unavailable"}`}
                         >
                           {isPersonalAvailable ? (
                             <Check className="h-3.5 w-3.5" />
                           ) : (
-                            <span className="text-[10px]">-</span>
+                            <span className="text-xs">-</span>
                           )}
                         </div>
                       );
                     }
 
-                    // Group heatmap cell
-                    const bgClass = getCellBgClass(cell);
+                    const total = cell?.totalCount || friends.length || 1;
+                    const count = cell?.availableCount || 0;
                     return (
                       <div
                         key={`${date}-${hour}`}
                         onMouseEnter={() => handleCellMouseEnter(date, hour)}
-                        className={`flex h-8 cursor-pointer select-none items-center justify-center rounded border border-transparent text-xs transition-colors ${bgClass}`}
-                        title={`${date} ${label} (${cell?.availableCount || 0}/${cell?.totalCount || friends.length} free)`}
+                        className="avail-heat flex h-8 cursor-pointer select-none items-center justify-center border text-sm"
+                        data-strong={availabilityStrong(count, total) ? "true" : "false"}
+                        style={heatStyle(count, total)}
+                        title={`${date} ${label} (${count}/${total} free)`}
                       >
                         {cell && cell.availableCount > 0 ? (
                           <span>
                             {cell.availableCount}/{cell.totalCount}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-ink-soft/40">0</span>
+                          <span className="text-xs text-ink-soft">0</span>
                         )}
                       </div>
                     );
@@ -297,16 +285,15 @@ export function When2MeetGrid({
 
       {/* Heatmap Legend */}
       {viewMode === "group" && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-seam pt-3 text-xs text-ink-soft">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-soft">
           <div className="flex items-center gap-1.5">
-            <span>Availability:</span>
-            <span className="inline-block h-3.5 w-5 rounded border border-seam/50 bg-pine/30" />
-            <span>0</span>
-            <span className="inline-block h-3.5 w-5 rounded bg-emerald-100" />
-            <span className="inline-block h-3.5 w-5 rounded bg-emerald-300" />
-            <span className="inline-block h-3.5 w-5 rounded bg-emerald-500" />
-            <span className="inline-block h-3.5 w-5 rounded bg-emerald-600" />
-            <span>All free</span>
+            <span>Free</span>
+            <span className="avail-heat inline-block h-3.5 w-5 border" style={heatStyle(0, 4)} />
+            <span className="avail-heat inline-block h-3.5 w-5 border" style={heatStyle(1, 4)} />
+            <span className="avail-heat inline-block h-3.5 w-5 border" style={heatStyle(2, 4)} />
+            <span className="avail-heat inline-block h-3.5 w-5 border" style={heatStyle(3, 4)} />
+            <span className="avail-heat inline-block h-3.5 w-5 border" data-strong="true" style={heatStyle(4, 4)} />
+            <span>Everyone</span>
           </div>
 
           <div className="text-right">
@@ -336,7 +323,7 @@ export function When2MeetGrid({
                   inspectedCell.availableFriends.map((name) => (
                     <span
                       key={name}
-                      className="inline-flex items-center gap-1 rounded bg-leaf/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-900"
+                      className="inline-flex items-center gap-1 bg-leaf/15 px-2 py-0.5 text-xs font-semibold text-leaf"
                     >
                       <Check className="h-3 w-3 text-leaf" />
                       {name}
@@ -355,7 +342,7 @@ export function When2MeetGrid({
                   inspectedCell.unavailableFriends.map((name) => (
                     <span
                       key={name}
-                      className="inline-flex items-center gap-1 rounded bg-tomato/15 px-2 py-0.5 text-[11px] font-medium text-tomato"
+                      className="inline-flex items-center gap-1 bg-tomato/15 px-2 py-0.5 text-xs font-medium text-tomato"
                     >
                       <X className="h-3 w-3" />
                       {name}

@@ -112,12 +112,10 @@ export function ItinerarySchedule({
 
       {/* Voter selector bar */}
       {friends.length > 0 && currentVoter && (
-        <div className="mb-4 border border-seam bg-sheet p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
-                Voting on individual stops as:
-              </span>
+              <span className="text-sm font-semibold text-ink">Voting as</span>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {friends.map((friend) => {
                   const isActive = currentVoter.id === friend.id;
@@ -139,8 +137,8 @@ export function ItinerarySchedule({
                 })}
               </div>
             </div>
-            <p className="max-w-xs text-xs text-ink-soft">
-              Votes save to user accounts. Disliking (👎) an item tells TXMates to show this place less often in future plans.
+            <p className="max-w-xs text-sm text-ink-soft">
+              A dislike is saved and that place shows up less.
             </p>
           </div>
         </div>
@@ -155,6 +153,9 @@ export function ItinerarySchedule({
           const stopVotes = itemVotes[item.activity.id] || {};
           const activeVote = currentVoter ? stopVotes[currentVoter.id] || null : null;
 
+          const inCount = friends.filter((f) => stopVotes[f.id] === "up").length;
+          const loveCount = friends.filter((f) => stopVotes[f.id] === "love").length;
+          const downCount = friends.filter((f) => stopVotes[f.id] === "down").length;
           const downvoters = friends.filter((f) => stopVotes[f.id] === "down");
           const isDownvotedGlobally = Boolean(
             downvotedIds?.has(item.activity.id) ||
@@ -173,7 +174,7 @@ export function ItinerarySchedule({
                 <div className="flex shrink-0 flex-col gap-1">
                   <button
                     type="button"
-                    className="grid h-11 w-11 cursor-grab place-items-center border border-seam text-ink touch-none active:cursor-grabbing disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 cursor-grab place-items-center text-ink touch-none active:cursor-grabbing disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Drag to reorder ${item.activity.name}`}
                     disabled={!canEdit}
                     onPointerDown={(event) => onPointerDown(event, index)}
@@ -194,7 +195,7 @@ export function ItinerarySchedule({
                   </button>
                   <button
                     type="button"
-                    className="grid h-11 w-11 place-items-center border border-seam text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 place-items-center text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Move ${item.activity.name} up`}
                     disabled={!canEdit || index === 0}
                     onClick={() => move(index, index - 1)}
@@ -203,7 +204,7 @@ export function ItinerarySchedule({
                   </button>
                   <button
                     type="button"
-                    className="grid h-11 w-11 place-items-center border border-seam text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 place-items-center text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Move ${item.activity.name} down`}
                     disabled={!canEdit || index === items.length - 1}
                     onClick={() => move(index, index + 1)}
@@ -212,185 +213,137 @@ export function ItinerarySchedule({
                   </button>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold tabular-nums text-ink">{item.timeSlot}</p>
-                  <p className="mt-1 text-sm text-ink-soft">Stop {index + 1}</p>
-                  {coverage && (
-                    <p
-                      className="avail-heat mt-1 inline-block border px-1.5 py-0.5 text-sm font-semibold"
-                      data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
-                      style={heatStyle(coverage.count, coverage.total)}
-                    >
-                      {coverage.word} · {coverage.count}/{coverage.total} free
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm font-semibold tabular-nums text-ink">{item.timeSlot}</p>
+                    <p className="text-sm font-semibold tabular-nums text-ink">
+                      {formatActivityPrice(item.activity, "person")}
+                    </p>
+                  </div>
+                  <h3 className="mt-1 text-xl font-semibold text-ink">{item.activity.name}</h3>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="text-sm tabular-nums text-ink-soft">
+                      {inCount} in · {loveCount} love{downCount > 0 ? ` · ${downCount} dislike` : ""}
+                    </p>
+                    {currentVoter && (
+                      <div
+                        className="flex items-center gap-1"
+                        role="group"
+                        aria-label={`Vote on ${item.activity.name} as ${currentVoter.name}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onVoteItem?.(item.activity, currentVoter, activeVote === "up" ? null : "up")
+                          }
+                          aria-pressed={activeVote === "up"}
+                          aria-label={`Vote in for ${item.activity.name}`}
+                          className={`inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold ${
+                            activeVote === "up" ? "bg-ink text-paper" : "text-ink"
+                          }`}
+                        >
+                          <ThumbsUp className="h-3.5 w-3.5" aria-hidden />
+                          In
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onVoteItem?.(item.activity, currentVoter, activeVote === "love" ? null : "love")
+                          }
+                          aria-pressed={activeVote === "love"}
+                          aria-label={`Love ${item.activity.name}`}
+                          className={`inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold ${
+                            activeVote === "love" ? "bg-tomato text-white" : "text-ink"
+                          }`}
+                        >
+                          <Heart className="h-3.5 w-3.5" aria-hidden />
+                          Love
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onVoteItem?.(item.activity, currentVoter, activeVote === "down" ? null : "down")
+                          }
+                          aria-pressed={activeVote === "down"}
+                          aria-label={`Dislike ${item.activity.name}`}
+                          className={`inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold ${
+                            activeVote === "down" ? "bg-tomato text-white" : "text-ink"
+                          }`}
+                        >
+                          <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
+                          Dislike
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {hasDownvotes && (
+                    <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-tomato">
+                      <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
+                      Disliked by {downvoters.map((d) => d.name.split(" ")[0]).join(", ") || "a mate"}. Saved, so it shows up less.
                     </p>
                   )}
-                  <div className="mt-2 w-full text-left">
-                    <h3 className="text-xl font-semibold text-ink">{item.activity.name}</h3>
-                    {(item.activity.kind || item.activity.resultFreshness) && (
-                      <p className="mt-1 text-sm text-ink">
-                        {item.activity.resultFreshness === "live"
-                          ? "Live"
-                          : item.activity.resultFreshness === "saved"
-                            ? `Saved, last seen ${formatAge(item.activity.lastSeen) || "earlier"}`
-                            : item.activity.resultFreshness === "catalog"
-                              ? "Austin calendar"
-                              : "Demo"}
-                        {item.activity.kind === "event"
-                          ? ` · Event${formatEventSpan(item.activity.startDate, item.activity.endDate) ? `, ${formatEventSpan(item.activity.startDate, item.activity.endDate)}` : ", date not listed"}`
-                          : item.activity.kind === "place"
-                            ? " · Place"
-                            : ""}
-                      </p>
-                    )}
-                    <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-soft">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                      <span>
-                        {item.activity.location} ({item.activity.neighborhood})
-                      </span>
-                    </p>
-                    <p className="mt-2 max-w-prose text-base text-ink">{item.activity.description}</p>
-                    <p className="mt-2 text-sm tabular-nums text-ink">
-                      {formatActivityPrice(item.activity, "person")} · {item.activity.durationMinutes} min · {item.activity.categoryLabel}
-                    </p>
-                    {item.activity.highlights.length > 0 && (
-                      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-soft">
-                        {item.activity.highlights.map((highlight) => (
-                          <li key={highlight} className="inline-flex items-center gap-1">
-                            <Check className="h-3.5 w-3.5" aria-hidden />
-                            {highlight}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {item.activity.whyThisFits && (
-                      <p className="mt-2 text-base text-ink">
-                        <span className="font-semibold">Why this fits. </span>
-                        {item.activity.whyThisFits}
-                      </p>
-                    )}
-                    {item.activity.museEnriched && <p className="mt-1 text-sm font-semibold text-ink">Muse</p>}
-                    <p className="mt-2 text-sm text-ink-soft">
-                      {item.notes}{" "}
-                      {coverage
-                        ? `${coverage.word}, ${coverage.count} of ${coverage.total} free for this stop.`
-                        : `${item.availableFriendsCount} friends free for this stop.`}
-                    </p>
-
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => setSwapIndex(index)}
-                        className="mt-2 inline-flex items-center text-sm font-semibold text-ink underline underline-offset-4 hover:text-ink-soft"
-                      >
-                        Swap this stop
-                      </button>
-                    )}
-
-                    {/* Item-level Voting Section */}
-                    <div className="mt-4 border-t border-seam pt-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
-                          Vote on this stop
-                        </span>
-                        {hasDownvotes && (
-                          <span className="inline-flex items-center gap-1 border border-tomato/30 bg-tomato/10 px-2 py-0.5 text-xs font-semibold text-tomato">
-                            <ThumbsDown className="h-3 w-3" aria-hidden />
-                            Disliked by {downvoters.map((d) => d.name.split(" ")[0]).join(", ") || "member"} · Saved to account (shows less)
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Active voter voting controls */}
-                      {currentVoter && (
-                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${currentVoter.avatarColor}`}
-                            >
-                              {currentVoter.name.charAt(0)}
-                            </span>
-                            <span className="text-sm font-medium text-ink">
-                              {currentVoter.name}:
-                            </span>
-                          </div>
-
-                          <div
-                            className="flex items-center gap-1.5"
-                            role="group"
-                            aria-label={`Vote on ${item.activity.name} as ${currentVoter.name}`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onVoteItem?.(
-                                  item.activity,
-                                  currentVoter,
-                                  activeVote === "up" ? null : "up"
-                                )
-                              }
-                              aria-pressed={activeVote === "up"}
-                              aria-label={`Vote in for ${item.activity.name}`}
-                              title="I'm in for this stop"
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
-                                activeVote === "up"
-                                  ? "bg-ink text-paper"
-                                  : "border border-seam bg-paper text-ink hover:bg-sheet"
-                              }`}
-                            >
-                              <ThumbsUp className="h-3.5 w-3.5" aria-hidden />
-                              In
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onVoteItem?.(
-                                  item.activity,
-                                  currentVoter,
-                                  activeVote === "love" ? null : "love"
-                                )
-                              }
-                              aria-pressed={activeVote === "love"}
-                              aria-label={`Love ${item.activity.name}`}
-                              title="Love this stop!"
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
-                                activeVote === "love"
-                                  ? "bg-tomato text-white"
-                                  : "border border-seam bg-paper text-ink hover:bg-sheet"
-                              }`}
-                            >
-                              <Heart className="h-3.5 w-3.5" aria-hidden />
-                              Love
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onVoteItem?.(
-                                  item.activity,
-                                  currentVoter,
-                                  activeVote === "down" ? null : "down"
-                                )
-                              }
-                              aria-pressed={activeVote === "down"}
-                              aria-label={`Dislike ${item.activity.name} (show less in future)`}
-                              title="Dislike this place - saves to your account so future recommendations show it less"
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
-                                activeVote === "down"
-                                  ? "border border-tomato bg-tomato text-white"
-                                  : "border border-seam bg-paper text-ink hover:bg-tomato/10 hover:text-tomato"
-                              }`}
-                            >
-                              <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
-                              Dislike (show less)
-                            </button>
-                          </div>
-                        </div>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">More</summary>
+                    <div className="mt-2">
+                      {(item.activity.kind || item.activity.resultFreshness) && (
+                        <p className="text-sm text-ink">
+                          {item.activity.resultFreshness === "live"
+                            ? "Live"
+                            : item.activity.resultFreshness === "saved"
+                              ? `Saved, last seen ${formatAge(item.activity.lastSeen) || "earlier"}`
+                              : item.activity.resultFreshness === "catalog"
+                                ? "Austin calendar"
+                                : "Demo"}
+                          {item.activity.kind === "event"
+                            ? ` · Event${formatEventSpan(item.activity.startDate, item.activity.endDate) ? `, ${formatEventSpan(item.activity.startDate, item.activity.endDate)}` : ", date not listed"}`
+                            : item.activity.kind === "place"
+                              ? " · Place"
+                              : ""}
+                        </p>
                       )}
-
-                      {/* Squad breakdown if any votes exist */}
+                      <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-soft">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        <span>
+                          {item.activity.location} ({item.activity.neighborhood})
+                        </span>
+                      </p>
+                      {coverage && (
+                        <p
+                          className="avail-heat mt-2 inline-block border px-1.5 py-0.5 text-sm font-semibold"
+                          data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
+                          style={heatStyle(coverage.count, coverage.total)}
+                        >
+                          {coverage.word} · {coverage.count}/{coverage.total} free
+                        </p>
+                      )}
+                      <p className="mt-2 max-w-prose text-base text-ink">{item.activity.description}</p>
+                      <p className="mt-2 text-sm tabular-nums text-ink">
+                        {item.activity.durationMinutes} min · {item.activity.categoryLabel}
+                      </p>
+                      {item.activity.highlights.length > 0 && (
+                        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-soft">
+                          {item.activity.highlights.map((highlight) => (
+                            <li key={highlight} className="inline-flex items-center gap-1">
+                              <Check className="h-3.5 w-3.5" aria-hidden />
+                              {highlight}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.activity.whyThisFits && (
+                        <p className="mt-2 text-base text-ink">
+                          <span className="font-semibold">Why this fits. </span>
+                          {item.activity.whyThisFits}
+                        </p>
+                      )}
+                      {item.activity.museEnriched && <p className="mt-1 text-sm font-semibold text-ink">Muse</p>}
+                      <p className="mt-2 text-sm text-ink-soft">
+                        {item.notes}{" "}
+                        {coverage
+                          ? `${coverage.word}, ${coverage.count} of ${coverage.total} free for this stop.`
+                          : `${item.availableFriendsCount} friends free for this stop.`}
+                      </p>
                       {Object.keys(stopVotes).length > 0 && (
-                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-seam/60 pt-2">
-                          <span className="text-xs text-ink-soft">Squad votes:</span>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           {friends.map((friend) => {
                             const vote = stopVotes[friend.id];
                             if (!vote) return null;
@@ -399,24 +352,32 @@ export function ItinerarySchedule({
                                 key={friend.id}
                                 type="button"
                                 onClick={() => onSelectActiveVoter?.(friend.id)}
-                                title={`Click to switch voter to ${friend.name}`}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border ${
+                                className={`inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-medium ${
                                   vote === "down"
-                                    ? "border-tomato/40 bg-tomato/10 text-tomato font-semibold"
+                                    ? "border-tomato/40 bg-tomato/10 font-semibold text-tomato"
                                     : vote === "love"
-                                      ? "border-sun/60 bg-sun-soft text-ink font-semibold"
+                                      ? "border-sun/60 bg-sun-soft font-semibold text-ink"
                                       : "border-seam bg-sheet text-ink"
                                 }`}
                               >
                                 <span>{friend.name.split(" ")[0]}:</span>
-                                {vote === "love" ? "❤️ Love" : vote === "up" ? "👍 In" : "👎 Dislike"}
+                                {vote === "love" ? "Love" : vote === "up" ? "In" : "Dislike"}
                               </button>
                             );
                           })}
                         </div>
                       )}
                     </div>
-                  </div>
+                  </details>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setSwapIndex(index)}
+                      className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-ink underline underline-offset-4 hover:text-ink-soft"
+                    >
+                      Swap this stop
+                    </button>
+                  )}
                 </div>
               </div>
             </li>

@@ -361,13 +361,13 @@ export function PlanningViews({
   const budget = currentPlan.nessieFinancialInsight;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight text-ink">The plan</h2>
-        <p className="mt-1 max-w-prose text-base text-ink-soft">
-          Three ways to spend the same window for {groupName}. The schedule stays put; the stops change.
+        <h2 className="text-3xl font-semibold text-ink">The plan</h2>
+        <p className="mt-2 max-w-prose text-base text-ink-soft">
+          Same window for {groupName}. The stops change; the hours do not.
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-px bg-seam sm:grid-cols-3" role="tablist">
+        <div className="mt-5 flex flex-wrap gap-x-6 border-b border-seam" role="tablist">
           {VIEWS.map((view) => {
             const selected = activeView === view.id;
             const Icon = view.icon;
@@ -378,24 +378,24 @@ export function PlanningViews({
                 role="tab"
                 aria-selected={selected}
                 onClick={() => onSelectView(view.id)}
-                className={`px-4 py-3 text-left ${
-                  selected ? "bg-sun text-ink" : "bg-sheet text-ink"
+                className={`inline-flex min-h-11 items-center gap-2 border-b-2 text-base font-semibold ${
+                  selected ? "border-ink text-ink" : "border-transparent text-ink-soft"
                 }`}
               >
-                <span className="flex items-center gap-2 text-base font-semibold">
-                  <Icon className="h-4 w-4" aria-hidden />
-                  {view.label}
-                </span>
-                <span className="mt-1 block text-sm text-ink-soft">{view.detail}</span>
+                <Icon className="h-4 w-4" aria-hidden />
+                {view.label}
               </button>
             );
           })}
         </div>
+        <p className="mt-3 max-w-prose text-base text-ink-soft">
+          {VIEWS.find((view) => view.id === activeView)?.detail}
+        </p>
       </div>
 
       <section aria-busy={musePending}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-2xl font-semibold text-ink">{currentPlan.title}</h2>
+          <h2 className="text-3xl font-semibold text-ink">{currentPlan.title}</h2>
           <p className="text-sm text-ink-soft" role="status">
             {musePending
               ? "Muse is writing. A live call can take about 25 seconds."
@@ -407,12 +407,12 @@ export function PlanningViews({
           </p>
         </div>
         {musePending && (
-          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
-            Muse is writing this plan. A live call can take about 25 seconds. This plan stays on screen until it answers.
+          <p role="status" className="mt-4 text-base text-ink">
+            Muse is writing. This plan stays until it answers.
           </p>
         )}
         {currentPlan.museLimited && !musePending && (
-          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
+          <p role="status" className="mt-4 text-base text-ink">
             Muse daily limit reached. Showing the built-in picks.
           </p>
         )}
@@ -437,7 +437,7 @@ export function PlanningViews({
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold text-ink">Money</h2>
+        <h2 className="text-3xl font-semibold text-ink">Money</h2>
         <p className="mt-1 max-w-prose text-base text-ink-soft">
           {spend.budgetStatus === "under"
             ? "Under the cap."
@@ -477,47 +477,30 @@ export function PlanningViews({
         <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
 
         {squadAdvisory && (
-          <div className="mt-5 border border-seam bg-sheet p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-seam pb-2">
-              <div>
-                <h3 className="text-base font-semibold text-ink">
-                  Overall Budget Alignment
-                </h3>
-                <p className="text-xs text-ink-soft">
-                  Recommended cap: ${squadAdvisory.groupPricePoint}/person (${squadAdvisory.groupTotalPool} total group pool).
-                </p>
-              </div>
-              <span
-                className={`border px-2 py-0.5 text-xs font-semibold ${
-                  spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
-                    ? "border-leaf/30 bg-leaf/10 text-leaf"
-                    : "border-tomato/30 bg-tomato/10 text-tomato"
-                }`}
-              >
+          <div className="mt-6 max-w-prose">
+            <p className="text-base text-ink">
+              <span className="font-semibold">
                 {spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
-                  ? "Within Squad Comfort Cap"
-                  : `+$${(spend.totalCostPerPerson - squadAdvisory.groupPricePoint).toFixed(0)} Over Squad Cap`}
-              </span>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-ink">
+                  ? "Within the squad cap"
+                  : `$${(spend.totalCostPerPerson - squadAdvisory.groupPricePoint).toFixed(0)} over the squad cap`}
+                .
+              </span>{" "}
+              Recommended ${squadAdvisory.groupPricePoint} a person, ${squadAdvisory.groupTotalPool} for the group.{" "}
               {squadAdvisory.rationale}
             </p>
             {squadAdvisory.coordinationTip && (
-              <p className="mt-2 border-t border-seam pt-2 text-xs text-ink-soft">
-                <span className="font-semibold text-ink">Coordination tip: </span>
-                {squadAdvisory.coordinationTip}
-              </p>
+              <p className="mt-2 text-base text-ink-soft">{squadAdvisory.coordinationTip}</p>
             )}
           </div>
         )}
       </section>
 
       <section id="itinerary-schedule" aria-busy={!editsReady || saving}>
-        <h2 className="text-2xl font-semibold text-ink">Schedule</h2>
-        <p className="mt-1 max-w-prose text-base text-ink-soft">
+        <h2 className="text-3xl font-semibold text-ink">Schedule</h2>
+        <p className="mt-2 max-w-prose text-base text-ink-soft">
           {itineraryLocked
-            ? "This itinerary is locked for the group. Order and swaps stay put until someone unlocks it."
-            : `${items.length} stops inside the shared window. Drag a handle or use the arrow buttons to reorder. Click a stop to swap it. Times include the 20 minute travel gap, and the cost follows the stops.`}
+            ? "Locked. Order and swaps stay put until someone unlocks it."
+            : `${items.length} stops. Drag to reorder, or swap a stop. Times include a 20 minute gap.`}
         </p>
         {itineraryLocked && (
           <p role="status" className="mt-4 flex items-center gap-2 border border-ink bg-ink px-4 py-3 text-base font-semibold text-paper">
@@ -526,7 +509,7 @@ export function PlanningViews({
           </p>
         )}
         {scheduleNotice && (
-          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
+          <p role="status" className="mt-4 text-base text-ink">
             {scheduleNotice}
           </p>
         )}
@@ -567,45 +550,55 @@ export function PlanningViews({
             </button>
           )}
         </div>
-      </section>
-
-      <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-2xl font-semibold text-ink">Votes</h2>
-          <p className="text-sm tabular-nums text-ink-soft">
-            {voteCount} of {totalFriends} ({consensusPercentage}%)
+        <div className="mt-6 border-t border-seam pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-base text-ink">
+              <span className="font-semibold tabular-nums">
+                {voteCount} of {totalFriends}
+              </span>{" "}
+              weighed in
+              <span className="text-ink-soft"> · {consensusPercentage}%</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsLocked(!isLocked)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 bg-ink px-4 text-base font-semibold text-paper"
+            >
+              {isLocked ? (
+                <>
+                  <Check className="h-4 w-4" aria-hidden />
+                  Unlock the plan
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4" aria-hidden />
+                  Lock the plan
+                </>
+              )}
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-ink-soft">
+            {isLocked
+              ? "Locked on this screen until you refresh."
+              : "Locking stays on this screen until you refresh."}
           </p>
-        </div>
-        <div className="mt-3 h-2 bg-seam" aria-hidden>
-          <div className="h-full bg-sun" style={{ width: `${consensusPercentage}%` }} />
-        </div>
-        <ul className="mt-2 border-t border-seam">
-          {friends.map((friend) => {
-            const vote = votes[friend.id];
-            return (
-              <li key={friend.id} className="flex items-center justify-between gap-3 border-b border-seam py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    className={`grid h-9 w-9 shrink-0 place-items-center text-sm font-semibold ${friend.avatarColor}`}
-                  >
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {friends.map((friend) => {
+              const vote = votes[friend.id];
+              return (
+                <li key={friend.id} className="flex items-center gap-1 border border-seam px-2">
+                  <span className={`grid h-7 w-7 shrink-0 place-items-center text-xs font-semibold ${friend.avatarColor}`}>
                     {friend.name.charAt(0)}
                   </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold text-ink">{friend.name}</p>
-                    <p className="text-sm text-ink-soft">
-                      {vote === "love" ? "Loves it" : vote === "up" ? "In" : "No vote yet"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-1">
+                  <span className="max-w-[7rem] truncate text-sm font-semibold text-ink">
+                    {friend.name.split(" ")[0]}
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleVote(friend.id, "up")}
                     aria-pressed={vote === "up"}
                     aria-label={`${friend.name} is in`}
-                    className={`grid h-11 w-11 place-items-center ${
-                      vote === "up" ? "bg-ink text-paper" : "border border-seam text-ink"
-                    }`}
+                    className={`grid h-11 w-11 place-items-center ${vote === "up" ? "bg-ink text-paper" : "text-ink"}`}
                   >
                     <ThumbsUp className="h-4 w-4" />
                   </button>
@@ -614,40 +607,14 @@ export function PlanningViews({
                     onClick={() => handleVote(friend.id, "love")}
                     aria-pressed={vote === "love"}
                     aria-label={`${friend.name} loves it`}
-                    className={`grid h-11 w-11 place-items-center ${
-                      vote === "love" ? "bg-tomato text-white" : "border border-seam text-ink"
-                    }`}
+                    className={`grid h-11 w-11 place-items-center ${vote === "love" ? "bg-tomato text-white" : "text-ink"}`}
                   >
                     <Heart className="h-4 w-4" />
                   </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-prose text-base text-ink">
-            {isLocked
-              ? "Locked on this machine. Votes are not saved to the database."
-              : `${voteCount} mates have weighed in. Locking stays on this screen until you refresh.`}
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsLocked(!isLocked)}
-            className="inline-flex min-h-11 items-center justify-center gap-2 bg-ink px-4 text-base font-semibold text-paper"
-          >
-            {isLocked ? (
-              <>
-                <Check className="h-4 w-4" aria-hidden />
-                Unlock the plan
-              </>
-            ) : (
-              <>
-                <Lock className="h-4 w-4" aria-hidden />
-                Lock the plan
-              </>
-            )}
-          </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </section>
     </div>

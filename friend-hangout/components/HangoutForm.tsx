@@ -45,6 +45,9 @@ interface HangoutFormProps {
   squadAdvisory?: SquadPricePointResponse | null;
   squadAdvisoryLoading?: boolean;
   onApplySquadPricePoint?: (target: number) => void;
+  plannerStep?: 'who' | 'when' | 'budget';
+  onPlannerStep?: (step: 'who' | 'when' | 'budget') => void;
+  plain?: boolean;
 }
 
 export function HangoutForm({
@@ -59,8 +62,11 @@ export function HangoutForm({
   squadAdvisory,
   squadAdvisoryLoading,
   onApplySquadPricePoint,
+  plannerStep,
+  onPlannerStep,
+  plain = false,
 }: HangoutFormProps) {
-  const [showAdvancedFriends, setShowAdvancedFriends] = useState(true);
+  const [showAdvancedFriends, setShowAdvancedFriends] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [copiedFriendId, setCopiedFriendId] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -331,14 +337,17 @@ export function HangoutForm({
     e.preventDefault();
     if (!preferences.groupName.trim()) {
       setValidationError('Please enter a group name for your hangout.');
+      onPlannerStep?.('who');
       return;
     }
     if (preferences.maxBudgetPerPerson <= 0) {
       setValidationError('Please set a maximum budget greater than $0.');
+      onPlannerStep?.('budget');
       return;
     }
     if (preferences.friends.length === 0) {
       setValidationError('Please add at least one friend to the plan.');
+      onPlannerStep?.('who');
       return;
     }
 
@@ -358,18 +367,23 @@ export function HangoutForm({
   const fieldClass =
     "w-full border border-seam bg-pine px-3 py-2.5 text-base text-ink placeholder:text-ink-soft";
 
+  const showWho = !plannerStep || plannerStep === "who";
+  const showWhen = !plannerStep || plannerStep === "when";
+  const showBudget = !plannerStep || plannerStep === "budget";
+
   return (
     <>
-      <form onSubmit={handleSubmit} className="border border-seam bg-sheet p-5 sm:p-7">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-seam pb-4">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-ink">The constraints</h2>
-            <p className="mt-1 text-base text-ink-soft">
-              {preferences.friends.length} mates. The hour scale above uses these windows.
-            </p>
+      <form onSubmit={handleSubmit} className={plain ? "" : "bg-sheet px-5 py-6 sm:px-7 sm:py-8"}>
+        {!plannerStep && (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-3xl font-semibold text-ink">The constraints</h2>
+              <p className="mt-2 text-base text-ink-soft">
+                {preferences.friends.length} mates. {budgetTier}.
+              </p>
+            </div>
           </div>
-          <p className="text-base font-semibold text-ink">{budgetTier}</p>
-        </div>
+        )}
 
         {validationError && (
           <p role="alert" className="mt-4 flex items-start gap-2 text-base font-semibold text-tomato">
@@ -378,7 +392,8 @@ export function HangoutForm({
           </p>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {showWho && (
+        <div className={`${plannerStep === "who" ? "mt-6" : "mt-8"} grid grid-cols-1 gap-4 sm:grid-cols-2`}>
           <label className="block text-base font-semibold text-ink">
             Group name
             <input
@@ -410,7 +425,7 @@ export function HangoutForm({
                   type="button"
                   key={neigh}
                   onClick={() => onChange({ ...preferences, location: `Austin, TX (${neigh})` })}
-                  className="border border-seam bg-pine px-2 py-1 text-sm font-semibold text-ink"
+                  className="bg-pine px-2 py-1 text-sm font-semibold text-ink"
                 >
                   {neigh.split(" ")[0]}
                 </button>
@@ -418,16 +433,18 @@ export function HangoutForm({
             </div>
           </div>
         </div>
+        )}
 
-        {/* Drag to choose multiple dates */}
-        <div className="mt-6 border border-seam bg-pine p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        {showWhen && (
+        <>
+        <div className={plannerStep === "when" ? "" : "mt-8"}>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
               <Calendar className="h-4 w-4" aria-hidden />
-              Choose Dates ({candidateDates.length})
+              Dates ({candidateDates.length})
             </span>
-            <span className="text-xs text-ink-soft">
-              Active plan: <strong className="text-ink">{formatFriendlyDate(preferences.date)}</strong>
+            <span className="text-sm text-ink-soft">
+              Planning <strong className="font-semibold text-ink">{formatFriendlyDate(preferences.date)}</strong>
             </span>
           </div>
 
@@ -439,14 +456,16 @@ export function HangoutForm({
           />
         </div>
 
-        {/* When2Meet scheduling matrix */}
-        <div className="mt-6">
-          <When2MeetGrid
-            dates={candidateDates.map((c) => c.date)}
-            friends={preferences.friends}
-            title="When2Meet Squad Availability Grid"
-          />
-        </div>
+        <details className="mt-6">
+          <summary className="cursor-pointer text-base font-semibold text-ink">Hour-by-hour grid</summary>
+          <div className="mt-3">
+            <When2MeetGrid
+              dates={candidateDates.map((c) => c.date)}
+              friends={preferences.friends}
+              title="When2Meet"
+            />
+          </div>
+        </details>
 
         <div className="mt-4">
           <fieldset>
@@ -485,20 +504,74 @@ export function HangoutForm({
             </div>
           </fieldset>
         </div>
+        </>
+        )}
 
-        <section className="mt-8 border-t border-seam pt-6">
+        {(showWho || showWhen) && (
+        <section className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-ink">Free windows</h3>
-              <p className="text-base text-ink-soft">
-                {overlap.allFriendsAvailable
-                  ? `All free ${overlap.commonStart}–${overlap.commonEnd} (${overlap.overlapHours} hrs).`
-                  : overlap.availableFriendCount > 0
-                    ? `Some free, ${overlap.availableFriendCount} of ${preferences.friends.length} overlap ${overlap.commonStart}–${overlap.commonEnd}.`
-                    : `None free in a shared window.`}
-              </p>
+              <h3 className="text-xl font-semibold text-ink">
+                {showWho && !showWhen ? "Mates" : "Free windows"}
+              </h3>
+              {showWhen ? (
+                <p className="mt-1 text-base text-ink-soft">
+                  {overlap.allFriendsAvailable
+                    ? `All free ${overlap.commonStart}–${overlap.commonEnd}.`
+                    : overlap.availableFriendCount > 0
+                      ? `${overlap.availableFriendCount} of ${preferences.friends.length} overlap, ${overlap.commonStart}–${overlap.commonEnd}.`
+                      : `No shared window yet.`}
+                </p>
+              ) : (
+                <p className="mt-1 text-base text-ink-soft">
+                  {preferences.friends.length} on this hangout.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
+              {showWho && (
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(true)}
+                  className="inline-flex min-h-11 items-center gap-1.5 bg-ink px-3 text-base font-semibold text-paper"
+                >
+                  <Share2 className="h-4 w-4" aria-hidden />
+                  Send links
+                </button>
+              )}
+              {showWho && (
+                <button
+                  type="button"
+                  onClick={handleAddFriend}
+                  className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-semibold text-ink"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add mate
+                </button>
+              )}
+              {showWhen && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFriends(!showAdvancedFriends)}
+                  aria-expanded={showAdvancedFriends}
+                  className="inline-flex min-h-11 items-center gap-1 px-2 text-base font-semibold text-ink"
+                >
+                  {showAdvancedFriends ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showAdvancedFriends ? "Hide hours" : "Edit hours"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {syncAllNotice && (
+            <p className="mt-3 flex items-start gap-2 text-sm font-semibold text-leaf" role="status">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>{syncAllNotice}</span>
+            </p>
+          )}
+
+          {showWhen && showAdvancedFriends && (
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={handleBatchSyncGoogleCalendars}
@@ -508,54 +581,22 @@ export function HangoutForm({
                 {batchSyncLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    Syncing Calendars…
+                    Syncing calendars…
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4 text-sun" aria-hidden />
-                    Auto-Import Google Calendars
+                    <Sparkles className="h-4 w-4" aria-hidden />
+                    Import Google Calendars
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowInviteModal(true)}
-                className="inline-flex min-h-11 items-center gap-1.5 bg-ink px-3 text-base font-semibold text-paper"
-              >
-                <Share2 className="h-4 w-4" aria-hidden />
-                Send links
-              </button>
-              <button
-                type="button"
-                onClick={handleAddFriend}
-                className="inline-flex min-h-11 items-center gap-1.5 border border-seam px-3 text-base font-semibold text-ink"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Add mate
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAdvancedFriends(!showAdvancedFriends)}
-                aria-expanded={showAdvancedFriends}
-                className="inline-flex min-h-11 items-center px-2 text-ink"
-              >
-                {showAdvancedFriends ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                <span className="sr-only">{showAdvancedFriends ? "Hide mates" : "Show mates"}</span>
-              </button>
-            </div>
-          </div>
-
-          {syncAllNotice && (
-            <div className="mt-3 flex items-start gap-2 border border-leaf/40 bg-leaf/10 p-3 text-sm font-semibold text-leaf">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{syncAllNotice}</span>
             </div>
           )}
 
-          {showAdvancedFriends && (
-            <ul className="mt-4 border-t border-seam">
+          {(showWho || showAdvancedFriends) && (
+          <ul className="mt-2">
               {preferences.friends.map((friend, idx) => (
-                <li key={friend.id} className="border-b border-seam py-4">
+                <li key={friend.id} className="py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className={`grid h-9 w-9 shrink-0 place-items-center text-sm font-semibold ${friend.avatarColor}`}>
@@ -571,41 +612,31 @@ export function HangoutForm({
                             className="w-full max-w-[14rem] bg-transparent text-base font-semibold text-ink"
                           />
                           {friend.nessieCustomerId && (
-                            <span className="shrink-0 border border-leaf/40 bg-leaf/10 px-1.5 py-0.5 text-[10px] font-semibold text-leaf">
-                              Nessie
-                            </span>
+                            <span className="shrink-0 text-sm font-semibold text-leaf">Nessie</span>
                           )}
                           {friend.calendarSynced && (
-                            <span className="shrink-0 border border-leaf/40 bg-leaf/10 px-1.5 py-0.5 text-[10px] font-semibold text-leaf">
-                              GCal
-                            </span>
+                            <span className="shrink-0 text-sm font-semibold text-leaf">Calendar</span>
                           )}
                         </div>
                         <p className="text-sm text-ink-soft">
-                          {friend.calendarSynced ? (
-                            <span className="inline-flex items-center gap-1 text-leaf font-medium">
-                              <CheckCircle2 className="h-3 w-3" />
-                              GCal Synced ({friend.calendarSyncDetails?.eventsDetected || 0} busy events)
-                            </span>
-                          ) : idx === 0 ? (
-                            "Organizer"
-                          ) : friend.status === "submitted" ? (
-                            "Submitted from their link"
-                          ) : (
-                            "Waiting on a link"
-                          )}
+                          {friend.calendarSynced
+                            ? `Calendar synced, ${friend.calendarSyncDetails?.eventsDetected || 0} busy`
+                            : idx === 0
+                              ? "Organizer"
+                              : friend.status === "submitted"
+                                ? "Submitted"
+                                : "Waiting"}
                         </p>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      {showWhen && showAdvancedFriends && (
                       <button
                         type="button"
                         onClick={() => handleSyncSingleFriendCalendar(friend)}
                         disabled={singleSyncLoadingId === friend.id}
-                        className={`inline-flex min-h-11 items-center gap-1 border px-2 text-sm font-semibold ${
-                          friend.calendarSynced
-                            ? 'border-leaf/40 bg-leaf/10 text-leaf'
-                            : 'border-seam bg-pine text-ink hover:bg-sheet'
+                        className={`inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold ${
+                          friend.calendarSynced ? "text-leaf" : "text-ink"
                         }`}
                         title={
                           friend.calendarSynced
@@ -618,19 +649,20 @@ export function HangoutForm({
                         ) : friend.calendarSynced ? (
                           <>
                             <CheckCircle2 className="h-4 w-4 text-leaf" aria-hidden />
-                            GCal Synced
+                            Synced
                           </>
                         ) : (
                           <>
-                            <Calendar className="h-4 w-4 text-tomato" aria-hidden />
-                            Sync GCal
+                            <Calendar className="h-4 w-4" aria-hidden />
+                            Calendar
                           </>
                         )}
                       </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleCopyFriendLink(friend.id)}
-                        className="inline-flex min-h-11 items-center gap-1 border border-seam px-2 text-sm font-semibold text-ink"
+                        className="inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-ink"
                       >
                         {copiedFriendId === friend.id ? (
                           <>
@@ -656,7 +688,7 @@ export function HangoutForm({
                       )}
                     </div>
                   </div>
-                  {friend.availabilitySlots.map((slot) => (
+                  {showWhen && showAdvancedFriends && friend.availabilitySlots.map((slot) => (
                     <div key={slot.id} className="mt-3 grid grid-cols-2 gap-2">
                       <label className="text-sm font-semibold text-ink-soft">
                         From
@@ -682,11 +714,32 @@ export function HangoutForm({
               ))}
             </ul>
           )}
+          {plannerStep === "who" && onPlannerStep && (
+            <button
+              type="button"
+              onClick={() => onPlannerStep("when")}
+              className="mt-8 flex min-h-11 w-full items-center justify-center bg-ink px-6 text-base font-semibold text-paper"
+            >
+              Next: When
+            </button>
+          )}
+          {plannerStep === "when" && onPlannerStep && (
+            <button
+              type="button"
+              onClick={() => onPlannerStep("budget")}
+              className="mt-8 flex min-h-11 w-full items-center justify-center bg-ink px-6 text-base font-semibold text-paper"
+            >
+              Next: Budget and vibes
+            </button>
+          )}
         </section>
+        )}
 
-        <section className="mt-8 border-t border-seam pt-6">
+        {showBudget && (
+        <>
+        <section className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <label className="text-lg font-semibold text-ink" htmlFor="budget-amount">
+            <label className="text-xl font-semibold text-ink" htmlFor="budget-amount">
               Max per person
             </label>
             <div className="flex items-center border border-seam bg-pine px-2">
@@ -772,9 +825,9 @@ export function HangoutForm({
           </p>
         </section>
 
-        <section className="mt-8 border-t border-seam pt-6">
+        <section className="mt-10">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-lg font-semibold text-ink">
+            <h3 className="text-xl font-semibold text-ink">
               Interests ({preferences.selectedInterests.length})
             </h3>
             <div className="flex gap-3 text-base font-semibold">
@@ -786,7 +839,7 @@ export function HangoutForm({
               </button>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-3 flex flex-wrap gap-2">
             {ACTIVITY_CATEGORIES.map((cat) => {
               const isSelected = preferences.selectedInterests.includes(cat.id as ActivityCategory);
               const Icon = CATEGORY_ICONS[cat.id as ActivityCategory];
@@ -796,20 +849,19 @@ export function HangoutForm({
                   key={cat.id}
                   onClick={() => toggleInterest(cat.id as ActivityCategory)}
                   aria-pressed={isSelected}
-                  className={`px-3 py-3 text-left ${
-                    isSelected ? "bg-sun text-ink" : "border border-seam bg-pine text-ink"
+                  className={`inline-flex min-h-11 items-center gap-2 px-3 text-base font-semibold ${
+                    isSelected ? "bg-sun text-ink" : "bg-pine text-ink"
                   }`}
                 >
                   <Icon className="h-4 w-4" aria-hidden />
-                  <span className="mt-2 block text-base font-semibold">{cat.label}</span>
-                  <span className="mt-0.5 block text-sm text-ink-soft">{cat.desc}</span>
+                  {cat.label}
                 </button>
               );
             })}
           </div>
         </section>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <button
             type="submit"
             disabled={isGenerating}
@@ -818,9 +870,11 @@ export function HangoutForm({
             {isGenerating ? "Refreshing the plan…" : "Generate hangout ideas"}
           </button>
           <p className="mt-2 text-center text-sm text-ink-soft">
-            Matches the overlap, the cap, and the Austin list you have selected.
+            Uses the overlap, the cap, and your interests.
           </p>
         </div>
+        </>
+        )}
       </form>
 
       {showInviteModal && (
@@ -921,6 +975,14 @@ export function HangoutForm({
   );
 }
 
+function publicBudgetCopy(text: string) {
+  if (/NESSIE_API_KEY|MUSE_API_KEY|\.env|npm run/i.test(text)) {
+    console.warn(text);
+    return 'Estimate';
+  }
+  return text;
+}
+
 function NessieBudgetNote({
   nessie,
   nessieLoading,
@@ -941,36 +1003,42 @@ function NessieBudgetNote({
     nessie?.source === 'nessie' &&
     typeof suggested === 'number' &&
     suggested !== currentBudget;
+  const rawStatus = nessieLoading
+    ? null
+    : nessie?.source === 'nessie'
+      ? `${nessie.estimate.museEnriched ? 'Muse. ' : ''}${nessie.estimate.reasoning}`
+      : nessie?.notice || 'Estimate only. Nessie did not answer, so this cap is not a bank balance.';
+  const statusCopy = rawStatus == null ? null : publicBudgetCopy(rawStatus);
 
   return (
     <div className="mt-3 space-y-3">
-      {nessie?.reason === 'no-customers' ? (
-        <p role="status" className="border border-seam bg-sun px-3 py-3 text-base text-ink">
-          <span className="font-semibold">No Nessie customers on this key. </span>
-          {nessie.notice ||
-            'The cap stays an estimate until a customer exists. From the friend-hangout folder, npm run nessie:seed adds a demo customer, checking account, purchases, and monthly and annual bills.'}
+      {nessieLoading ? (
+        <p role="status" className="text-base text-ink">
+          Reading accounts, then asking Muse to explain the cap…
+        </p>
+      ) : statusCopy === 'Estimate' ? (
+        <p role="status" className="text-sm font-semibold text-ink-soft">
+          Estimate
         </p>
       ) : (
         <p role="status" className="text-base text-ink">
-          {nessieLoading
-            ? 'Reading Nessie accounts, purchases, and bills, then asking Muse to explain the numbers…'
-            : nessie?.source === 'nessie'
-              ? `${nessie.estimate.museEnriched ? 'Muse. ' : ''}${nessie.estimate.reasoning}`
-              : nessie?.notice ||
-                'Estimate only. Nessie did not answer, so this cap is not a bank balance.'}
+          {statusCopy}
         </p>
       )}
       {nessie?.source === 'nessie' && (
-        <p className="text-base text-ink">
-          {nessie.estimate.savingsBalance > 0 || nessie.estimate.plannedMonthlySavings > 0
-            ? `Savings $${Math.round(nessie.estimate.savingsBalance)} stays out of the hangout budget${
-                nessie.estimate.plannedMonthlySavings > 0
-                  ? `, with about $${Math.round(nessie.estimate.plannedMonthlySavings)} a month set aside`
-                  : ''
-              }. `
-            : ''}
-          Nessie does not update account balances from purchases or deposits, so this uses the balance field as stored.
-        </p>
+        <details className="mt-2">
+          <summary className="cursor-pointer text-sm font-semibold text-ink">How this cap was set</summary>
+          <p className="mt-2 text-base text-ink">
+            {nessie.estimate.savingsBalance > 0 || nessie.estimate.plannedMonthlySavings > 0
+              ? `Savings $${Math.round(nessie.estimate.savingsBalance)} stays out of the hangout budget${
+                  nessie.estimate.plannedMonthlySavings > 0
+                    ? `, with about $${Math.round(nessie.estimate.plannedMonthlySavings)} a month set aside`
+                    : ''
+                }. `
+              : ''}
+            Nessie does not update account balances from purchases or deposits, so this uses the balance field as stored.
+          </p>
+        </details>
       )}
       {nessie && nessie.customers.length > 1 && !nessie.customerLocked && (
         <label className="block text-base font-semibold text-ink">
@@ -1017,7 +1085,7 @@ function NessieBudgetNote({
         <button
           type="button"
           onClick={onUseSuggestion}
-          className="inline-flex min-h-11 items-center border border-seam px-3 text-base font-semibold text-ink"
+          className="inline-flex min-h-11 items-center bg-ink px-3 text-base font-semibold text-paper"
         >
           Use ${suggested} from Nessie
         </button>

@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
-import { Familjen_Grotesk } from "next/font/google";
+import { Fraunces, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 
-const familjen = Familjen_Grotesk({
+const fraunces = Fraunces({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-familjen",
+  variable: "--font-fraunces",
+  weight: "variable",
+});
+
+const sourceSans = Source_Sans_3({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-source",
+  weight: "variable",
 });
 
 export const metadata: Metadata = {
@@ -20,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${familjen.variable} h-full antialiased`}>
+    <html lang="en" className={`${fraunces.variable} ${sourceSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-pine text-ink">
         <a
           href="#main"
