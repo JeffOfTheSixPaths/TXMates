@@ -2,10 +2,10 @@
   "txmates-demo": {
     "groupName": "The goobers",
     "friendCount": 4,
-    "location": "Austin, TX",
+    "location": "Cleaveland, Ohio",
     "date": "2026-10-26",
     "timePreference": "afternoon",
-    "maxBudgetPerPerson": 50,
+    "maxBudgetPerPerson": 15,
     "selectedInterests": [
       "food",
       "music",
@@ -89,6 +89,11 @@
           "outdoors"
         ]
       }
+    ],
+    "dates": [
+      "2026-10-25",
+      "2026-10-26",
+      "2026-10-27"
     ],
     "id": "txmates-demo"
   }

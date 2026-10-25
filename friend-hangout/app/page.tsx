@@ -262,6 +262,7 @@ export default function Home() {
   const handleGenerate = () => {
     setIsGenerating(true);
     setMusePending(true);
+    setLiveAiData({ overall: null, cheapest: null, interests: null });
     fetchLiveMusePlan(activeView).finally(() => {
       setIsGenerating(false);
       // Smooth scroll to planning views
@@ -456,6 +457,8 @@ export default function Home() {
             onClearShortlist={handleClearShortlist}
             onApplyShortlist={handleApplyShortlist}
             maxBudget={preferences.maxBudgetPerPerson}
+            location={preferences.location}
+            onLocationChange={(loc) => setPreferences((prev) => ({ ...prev, location: loc }))}
           />
         )}
       </main>
