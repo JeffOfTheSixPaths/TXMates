@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Award,
   Check,
@@ -141,13 +141,25 @@ export function PlanningViews({
     };
   }, [preferences.id]);
 
+  // Keep the latest callback in a ref so a new inline onVoteRecorded from the
+  // parent does not re-run the votes fetch. Depending on the callback (or on
+  // the friends array identity) made every parent render refetch votes and
+  // re-trigger a Muse plan request in a tight loop.
+  const onVoteRecordedRef = useRef(onVoteRecorded);
+  useEffect(() => {
+    onVoteRecordedRef.current = onVoteRecorded;
+  }, [onVoteRecorded]);
+
+  const voteUserIds = friends.map((f) => f.id).join(",");
+  const voteCustomerIds = friends
+    .map((f) => f.nessieCustomerId)
+    .filter(Boolean)
+    .join(",");
+
   useEffect(() => {
     let cancelled = false;
-    const userIds = friends.map((f) => f.id).join(",");
-    const customerIds = friends
-      .map((f) => f.nessieCustomerId)
-      .filter(Boolean)
-      .join(",");
+    const userIds = voteUserIds;
+    const customerIds = voteCustomerIds;
     fetch(
       `/api/votes/item?userIds=${encodeURIComponent(userIds)}&customerIds=${encodeURIComponent(customerIds)}`
     )
@@ -170,7 +182,7 @@ export function PlanningViews({
           }
           setItemVotes(map);
           if (Array.isArray(data.downvotedActivityIds)) {
-            onVoteRecorded?.({
+            onVoteRecordedRef.current?.({
               downvotedIds: new Set(data.downvotedActivityIds),
               downvotedNames: new Set(data.downvotedActivityNames || []),
             });
@@ -181,7 +193,7 @@ export function PlanningViews({
     return () => {
       cancelled = true;
     };
-  }, [friends, onVoteRecorded]);
+  }, [voteUserIds, voteCustomerIds]);
 
   const handleVoteItem = async (
     activity: Activity,
