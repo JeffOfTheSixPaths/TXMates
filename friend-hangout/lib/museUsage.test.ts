@@ -85,6 +85,42 @@ describe('Muse usage guard', () => {
     db.close();
   });
 
+  it('sends only max_completion_tokens and does not count an HTTP error', async () => {
+    process.env.MUSE_API_KEY = 'test-key';
+    process.env.MUSE_MAX_CALLS_PER_DAY = '1';
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T15:00:00.000Z');
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ error: 'both token fields' }), { status: 400 });
+    };
+    const rejected = await museComplete(db, {
+      purpose: 'plan',
+      cacheKey: 'plan-400',
+      maxTokens: 8192,
+      messages: [{ role: 'user', content: 'plan' }],
+      now,
+      fetchImpl,
+    });
+    assert.equal(rejected.content, null);
+    assert.equal(rejected.limited, false);
+    assert.deepEqual(Object.keys(bodies[0] || {}).filter((key) => key.includes('token')), ['max_completion_tokens']);
+    assert.equal(bodies[0]?.max_completion_tokens, 8192);
+    assert.equal(museCallsToday(db, now), 0);
+    const again = await museComplete(db, {
+      purpose: 'plan',
+      cacheKey: 'plan-400-again',
+      maxTokens: 8192,
+      messages: [{ role: 'user', content: 'plan' }],
+      now,
+      fetchImpl,
+    });
+    assert.equal(again.limited, false);
+    assert.equal(bodies.length, 2);
+    db.close();
+  });
+
   it('counts an error toward the cap', () => {
     const db = new DatabaseSync(':memory:');
     const now = new Date('2026-10-25T15:00:00.000Z');

@@ -56,7 +56,6 @@ export async function museComplete(
       body: JSON.stringify({
         model,
         temperature: input.temperature ?? 0.2,
-        max_tokens: input.maxTokens ?? 1200,
         max_completion_tokens: input.maxTokens ?? 1200,
         ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {}),
         messages: input.messages,
@@ -67,7 +66,8 @@ export async function museComplete(
       usage?: unknown;
     } | null;
     const usage = tokenUsageFromApi(payload);
-    if (!response.ok || !payload) {
+    if (!response.ok) return { content: null, cached: false, limited: false };
+    if (!payload) {
       recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', usage, now });
       return { content: null, cached: false, limited: false };
     }

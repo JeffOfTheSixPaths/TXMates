@@ -142,10 +142,10 @@ describe('discovery search', () => {
       tags: ['tacos'],
     };
     let calls = 0;
-    let body: { max_tokens?: number; reasoning_effort?: string } | null = null;
+    let body: { max_tokens?: number; max_completion_tokens?: number; reasoning_effort?: string } | null = null;
     const fetchImpl: typeof fetch = async (_input, init) => {
       calls += 1;
-      body = JSON.parse(String(init?.body)) as { max_tokens?: number; reasoning_effort?: string };
+      body = JSON.parse(String(init?.body)) as { max_tokens?: number; max_completion_tokens?: number; reasoning_effort?: string };
       const content =
         calls === 1
           ? `${JSON.stringify([complete]).slice(0, -1)},{"id":"${second.id}","kind":"pla`
@@ -181,7 +181,9 @@ describe('discovery search', () => {
     assert.equal(partial?.category, 'food');
     assert.equal(partial?.estimated_cost, 12);
     assert.equal(getActivityRow(db, second.id)?.enriched_at ?? null, null);
-    assert.equal(body?.max_tokens, ENRICH_MAX_TOKENS);
+    assert.equal(body?.max_completion_tokens, ENRICH_MAX_TOKENS);
+    assert.equal(body?.max_tokens, undefined);
+    assert.equal(ENRICH_MAX_TOKENS, 8192);
     assert.equal(body?.reasoning_effort, ENRICH_REASONING_EFFORT);
     assert.ok(ENRICH_MAX_TOKENS > 1600);
     assert.equal(readMuseContentCache(db, 'missing', now), null);
