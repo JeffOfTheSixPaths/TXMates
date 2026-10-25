@@ -127,3 +127,20 @@ input[type="range"] {
     transition: none;
   }
 }
+
+.itinerary-dialog {
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  overflow: hidden;
+  border: 1px solid #c9d4c0;
+  background: #f3eadb;
+  color: #241c16;
+  padding: 0;
+  width: min(42rem, calc(100% - 2rem));
+  max-height: min(44rem, calc(100% - 2rem));
+}
+
+.itinerary-dialog::backdrop {
+  background: color-mix(in srgb, #241c16 48%, transparent);
+}

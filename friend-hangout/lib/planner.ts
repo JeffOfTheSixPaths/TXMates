@@ -1,4 +1,4 @@
-import {
+import type {
   Activity,
   ActivityCategory,
   HangoutPlan,
@@ -125,6 +125,9 @@ function addMinutesToTime(startHour24: number, startMinute: number, minutesToAdd
   return `${h12}:${padM} ${ampm}`;
 }
 
+/** Minutes the planner inserts between stops for a commute or stroll. */
+export const TRAVEL_BUFFER_MINUTES = 20;
+
 /**
  * Builds chronological itinerary items for selected activities
  */
@@ -171,7 +174,7 @@ export function buildItinerary(
     } else if (idx === activities.length - 1) {
       note = `Grand finale for ${preferences.groupName}. Wrap up, recap, and plan the next meetup.`;
     } else {
-      note = `Mid-hangout transition. 15-minute commute/stroll buffer included.`;
+      note = `Mid-hangout transition. ${TRAVEL_BUFFER_MINUTES}-minute commute/stroll buffer included.`;
     }
 
     items.push({
@@ -182,8 +185,8 @@ export function buildItinerary(
       availableFriendsCount: preferences.friends.length || preferences.friendCount,
     });
 
-    // Add activity duration + 20 minute travel/buffer
-    currentElapsed += act.durationMinutes + 20;
+    // Add activity duration plus a travel buffer before the next stop.
+    currentElapsed += act.durationMinutes + TRAVEL_BUFFER_MINUTES;
   });
 
   return items;

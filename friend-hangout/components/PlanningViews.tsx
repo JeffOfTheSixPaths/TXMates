@@ -1,28 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Award,
   Check,
+  Download,
   Heart,
   Lock,
-  MapPin,
   ThumbsUp,
   TrendingDown,
   Zap,
 } from "lucide-react";
-import { HangoutPlan, PlanningViewType, Friend } from "@/types";
-import { formatAge, formatEventSpan } from "@/lib/activityFormat";
-import { availabilityStrong, coverageCount, parseSlotLabel } from "@/lib/availabilityHeat";
-import { heatStyle } from "@/components/OverlapRunner";
+import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity } from "@/types";
+import { formatAge } from "@/lib/activityFormat";
+import { buildItinerary } from "@/lib/planner";
+import { editItinerary, spendSummary } from "@/lib/itineraryEdit";
+import { downloadItineraryPng, formatPosterDate } from "@/lib/itineraryPoster";
+import { parseItinerarySnapshot } from "@/lib/itineraryLock";
+import { ItinerarySchedule } from "@/components/ItinerarySchedule";
 
 interface PlanningViewsProps {
   currentPlan: HangoutPlan;
   activeView: PlanningViewType;
   onSelectView: (view: PlanningViewType) => void;
-  friends: Friend[];
-  groupName: string;
+  preferences: HangoutPreferences;
   musePending?: boolean;
+  scheduleRevision?: number;
 }
 
 const VIEWS: {
@@ -55,16 +58,170 @@ export function PlanningViews({
   currentPlan,
   activeView,
   onSelectView,
-  friends,
-  groupName,
+  preferences,
   musePending = false,
+  scheduleRevision = 0,
 }: PlanningViewsProps) {
+  const friends = preferences.friends;
+  const groupName = preferences.groupName;
   const [votes, setVotes] = useState<Record<string, "up" | "love" | null>>({
     "f-1": "up",
     "f-2": "love",
     "f-3": "up",
   });
   const [isLocked, setIsLocked] = useState(false);
+  const [override, setOverride] = useState<ItineraryItem[] | null>(null);
+  const [itineraryLocked, setItineraryLocked] = useState(false);
+  const [editsReady, setEditsReady] = useState(false);
+  const [canDownload, setCanDownload] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
+  const [seenView, setSeenView] = useState(activeView);
+  const [seenRevision, setSeenRevision] = useState(scheduleRevision);
+
+  if (seenView !== activeView || seenRevision !== scheduleRevision) {
+    setSeenView(activeView);
+    setSeenRevision(scheduleRevision);
+    if (!itineraryLocked) setOverride(null);
+  }
+
+  const items = useMemo(() => {
+    if (itineraryLocked && override) return override;
+    if (override) return buildItinerary(override.map((item) => item.activity), preferences);
+    return currentPlan.itinerary;
+  }, [itineraryLocked, override, preferences, currentPlan.itinerary]);
+
+  const spend = spendSummary(
+    items,
+    friends.length || preferences.friendCount,
+    preferences.maxBudgetPerPerson
+  );
+  const sameStops =
+    items.length === currentPlan.itinerary.length &&
+    items.every((item, index) => item.activity.id === currentPlan.itinerary[index]?.activity.id);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = preferences.id || "txmates-demo";
+    fetch(`/api/hangouts?id=${encodeURIComponent(id)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { itineraryLock?: { locked?: boolean; snapshot?: unknown } } | null) => {
+        if (cancelled || !data?.itineraryLock?.locked) return;
+        const snapshot = parseItinerarySnapshot(data.itineraryLock.snapshot);
+        if (!snapshot) return;
+        setOverride(snapshot);
+        setItineraryLocked(true);
+        setCanDownload(true);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setEditsReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preferences.id]);
+
+  async function persistItinerary(nextLocked: boolean, snapshot: ItineraryItem[]) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/hangouts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: preferences.id || "txmates-demo",
+          locked: nextLocked,
+          itinerary: snapshot,
+        }),
+      });
+      if (!res.ok) throw new Error("save");
+    } catch {
+      if (nextLocked) {
+        setItineraryLocked(false);
+        setScheduleNotice("The image downloaded, but the lock did not save. Try locking again.");
+      } else {
+        setItineraryLocked(true);
+        setScheduleNotice("Unlock did not save. Try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleReorder(from: number, to: number) {
+    setOverride((current) => {
+      const base = current ?? items;
+      const state = { items: base, locked: itineraryLocked };
+      const next = editItinerary(state, { type: "reorder", from, to }, preferences);
+      if (next === state || next.items === base) return current;
+      return next.items;
+    });
+  }
+
+  function handleSwap(index: number, activity: Activity) {
+    const state = { items, locked: itineraryLocked };
+    const next = editItinerary(state, { type: "swap", index, activity }, preferences);
+    if (next === state || next.items === items) return;
+    setOverride(next.items);
+    const stop = next.items[index];
+    setScheduleNotice(
+      stop
+        ? `${activity.name} replaces stop ${index + 1}. That stop is now ${stop.timeSlot}.`
+        : `${activity.name} is on the itinerary.`
+    );
+  }
+
+  function posterInput(snapshot: ItineraryItem[]) {
+    const totals = spendSummary(snapshot, friends.length || preferences.friendCount, preferences.maxBudgetPerPerson);
+    return {
+      groupName: preferences.groupName,
+      dateLabel: formatPosterDate(preferences.date),
+      location: preferences.location,
+      items: snapshot,
+      friends,
+      totalPerPerson: totals.totalCostPerPerson,
+      totalGroup: totals.totalGroupCost,
+    };
+  }
+
+  function handleLock() {
+    if (itineraryLocked || saving || !editsReady) return;
+    const next = editItinerary({ items, locked: false }, { type: "lock" }, preferences);
+    let downloaded = false;
+    try {
+      downloadItineraryPng(posterInput(next.items));
+      downloaded = true;
+    } catch {
+      downloaded = false;
+    }
+    setOverride(next.items);
+    setItineraryLocked(true);
+    setCanDownload(true);
+    setScheduleNotice(
+      downloaded
+        ? "Itinerary locked. The image should be in your downloads."
+        : "Itinerary locked. The image did not download. Use Download image."
+    );
+    void persistItinerary(true, next.items);
+  }
+
+  function handleUnlock() {
+    if (!itineraryLocked || saving) return;
+    const next = editItinerary({ items, locked: true }, { type: "unlock" }, preferences);
+    setItineraryLocked(false);
+    setOverride(next.items);
+    setScheduleNotice("Itinerary unlocked. You can reorder and swap again.");
+    void persistItinerary(false, next.items);
+  }
+
+  function handleDownload() {
+    try {
+      downloadItineraryPng(posterInput(items));
+      setScheduleNotice("Image downloaded.");
+    } catch {
+      setScheduleNotice("The image did not download. Try again.");
+    }
+  }
 
   const handleVote = (friendId: string, type: "up" | "love") => {
     setVotes((prev) => {
@@ -162,9 +319,9 @@ export function PlanningViews({
       <section>
         <h2 className="text-2xl font-semibold text-ink">Money</h2>
         <p className="mt-1 max-w-prose text-base text-ink-soft">
-          {budget.budgetStatus === "under"
+          {spend.budgetStatus === "under"
             ? "Under the cap."
-            : budget.budgetStatus === "on-target"
+            : spend.budgetStatus === "on-target"
               ? "On the cap."
               : "Over the cap."}{" "}
           {budget.source === "nessie"
@@ -175,19 +332,19 @@ export function PlanningViews({
           <div className="flex items-baseline justify-between gap-4 py-3">
             <dt className="text-base text-ink-soft">Each person</dt>
             <dd className="text-base font-semibold tabular-nums text-ink">
-              ${currentPlan.totalCostPerPerson.toFixed(0)}
+              ${spend.totalCostPerPerson.toFixed(0)}
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 py-3">
             <dt className="text-base text-ink-soft">Whole group ({friends.length})</dt>
             <dd className="text-base font-semibold tabular-nums text-ink">
-              ${currentPlan.totalGroupCost.toFixed(0)}
+              ${spend.totalGroupCost.toFixed(0)}
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 py-3">
             <dt className="text-base text-ink-soft">Left under the cap, each</dt>
             <dd className="text-base font-semibold tabular-nums text-ink">
-              ${budget.savingsPerPerson.toFixed(0)}
+              ${spend.savingsPerPerson.toFixed(0)}
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 py-3">
@@ -197,84 +354,58 @@ export function PlanningViews({
             </dd>
           </div>
         </dl>
-        <p className="mt-3 max-w-prose text-base text-ink">{budget.budgetTip}</p>
+        <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
       </section>
 
-      <section>
+      <section id="itinerary-schedule" aria-busy={!editsReady || saving}>
         <h2 className="text-2xl font-semibold text-ink">Schedule</h2>
-        <p className="mt-1 text-base text-ink-soft">
-          {currentPlan.itinerary.length} stops inside the shared window.
+        <p className="mt-1 max-w-prose text-base text-ink-soft">
+          {itineraryLocked
+            ? "This itinerary is locked for the group. Order and swaps stay put until someone unlocks it."
+            : `${items.length} stops inside the shared window. Drag a handle or use the arrow buttons to reorder. Click a stop to swap it. Times include the 20 minute travel gap, and the cost follows the stops.`}
         </p>
-        <ol className="mt-4 border-t border-seam">
-          {currentPlan.itinerary.map((item, idx) => {
-            const slot = parseSlotLabel(item.timeSlot);
-            const coverage = slot ? coverageCount(friends, slot.start, slot.end) : null;
-            return (
-            <li key={item.activity.id} className="grid gap-3 border-b border-seam py-5 sm:grid-cols-[7.5rem_1fr]">
-              <div>
-                <p className="text-sm font-semibold tabular-nums text-ink">{item.timeSlot}</p>
-                <p className="mt-1 text-sm text-ink-soft">Stop {idx + 1}</p>
-                {coverage && (
-                  <p
-                    className="avail-heat mt-1 inline-block border px-1.5 py-0.5 text-sm font-semibold"
-                    data-strong={availabilityStrong(coverage.count, coverage.total) ? "true" : "false"}
-                    style={heatStyle(coverage.count, coverage.total)}
-                  >
-                    {coverage.word} · {coverage.count}/{coverage.total} free
-                  </p>
-                )}
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-ink">{item.activity.name}</h3>
-                {(item.activity.kind || item.activity.resultFreshness) && (
-                  <p className="mt-1 text-sm text-ink">
-                    {item.activity.resultFreshness === "live"
-                      ? "Live"
-                      : item.activity.resultFreshness === "saved"
-                        ? `Saved, last seen ${formatAge(item.activity.lastSeen) || "earlier"}`
-                        : "Demo"}
-                    {item.activity.kind === "event"
-                      ? ` · Event${formatEventSpan(item.activity.startDate, item.activity.endDate) ? `, ${formatEventSpan(item.activity.startDate, item.activity.endDate)}` : ", date not listed"}`
-                      : item.activity.kind === "place"
-                        ? " · Place"
-                        : ""}
-                  </p>
-                )}
-                <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-soft">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  <span>
-                    {item.activity.location} ({item.activity.neighborhood})
-                  </span>
-                </p>
-                <p className="mt-2 max-w-prose text-base text-ink">{item.activity.description}</p>
-                <p className="mt-2 text-sm tabular-nums text-ink">
-                  ${item.activity.estimatedCostPerPerson} a person · {item.activity.durationMinutes} min · {item.activity.categoryLabel}
-                </p>
-                <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-soft">
-                  {item.activity.highlights.map((highlight) => (
-                    <li key={highlight} className="inline-flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" aria-hidden />
-                      {highlight}
-                    </li>
-                  ))}
-                </ul>
-                {item.activity.whyThisFits && (
-                  <p className="mt-2 text-base text-ink">
-                    <span className="font-semibold">Why this fits. </span>
-                    {item.activity.whyThisFits}
-                  </p>
-                )}
-                {item.activity.museEnriched && (
-                  <p className="mt-1 text-sm font-semibold text-ink">Muse</p>
-                )}
-                <p className="mt-2 text-sm text-ink-soft">
-                  {item.notes} {coverage ? `${coverage.word}, ${coverage.count} of ${coverage.total} free for this stop.` : `${item.availableFriendsCount} friends free for this stop.`}
-                </p>
-              </div>
-            </li>
-            );
-          })}
-        </ol>
+        {itineraryLocked && (
+          <p role="status" className="mt-4 flex items-center gap-2 border border-ink bg-ink px-4 py-3 text-base font-semibold text-paper">
+            <Lock className="h-4 w-4" aria-hidden />
+            Itinerary locked
+          </p>
+        )}
+        {scheduleNotice && (
+          <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
+            {scheduleNotice}
+          </p>
+        )}
+        <ItinerarySchedule
+          items={items}
+          friends={friends}
+          preferences={preferences}
+          locked={itineraryLocked}
+          editsReady={editsReady}
+          onReorder={handleReorder}
+          onSwap={handleSwap}
+        />
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <button
+            type="button"
+            onClick={itineraryLocked ? handleUnlock : handleLock}
+            disabled={!editsReady || saving}
+            aria-pressed={itineraryLocked}
+            className="inline-flex min-h-11 items-center justify-center gap-2 bg-ink px-4 text-base font-semibold text-paper disabled:opacity-70"
+          >
+            <Lock className="h-4 w-4" aria-hidden />
+            {itineraryLocked ? "Unlock itinerary" : "Lock itinerary"}
+          </button>
+          {(itineraryLocked || canDownload) && (
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="inline-flex min-h-11 items-center justify-center gap-2 border border-seam bg-sheet px-4 text-base font-semibold text-ink"
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              Download image
+            </button>
+          )}
+        </div>
       </section>
 
       <section>

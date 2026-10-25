@@ -50,6 +50,7 @@ export default function Home() {
   const [nessieLoading, setNessieLoading] = useState(true);
   const [nessieCustomerId, setNessieCustomerId] = useState('');
   const [nessieAccountId, setNessieAccountId] = useState('');
+  const [scheduleRevision, setScheduleRevision] = useState(0);
   const budgetTouched = useRef(false);
   const [liveAiData, setLiveAiData] = useState<
     Record<
@@ -306,6 +307,7 @@ export default function Home() {
     setPreferences(DEFAULT_PREFERENCES);
     setActiveView('overall');
     setShortlist([]);
+    setScheduleRevision((revision) => revision + 1);
   };
 
   const overlap = calculateAvailabilityOverlap(preferences.friends);
@@ -441,9 +443,9 @@ export default function Home() {
                     void fetchLiveMusePlan(newView);
                   }
                 }}
-                friends={preferences.friends}
-                groupName={preferences.groupName}
+                preferences={preferences}
                 musePending={musePending}
+                scheduleRevision={scheduleRevision}
               />
             </div>
           </div>
