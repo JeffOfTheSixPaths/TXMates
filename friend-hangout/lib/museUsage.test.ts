@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, describe, it } from 'node:test';
 import { musePlanCacheKey, stablePlanCacheKey } from './museCache.ts';
 import { museComplete } from './museClient.ts';
-import { ENRICH_REASONING_EFFORT, parseMuseEnrichments } from './museEnrich.ts';
+import { ENRICH_REASONING_EFFORT, parseMuseEnrichments, PLAN_ENRICH_LIMIT } from './museEnrich.ts';
 import { BUDGET_MAX_COMPLETION_TOKENS, fillPlanPicks, groupSizeInstruction, hangoutGroupSize, heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseBudgetCopy, parseMusePlan, PLAN_MAX_COMPLETION_TOKENS, shouldCacheMusePlan, uniquePlanCandidates } from './musePlan.ts';
 import { museCallsToday, museMaxCallsPerDay, readMuseContentCache, recordMuseCall, tokenUsageFromApi } from './museUsage.ts';
 
@@ -124,6 +124,7 @@ describe('Muse usage guard', () => {
   it('gives plan and budget room to finish and does not cache a cut-off reply', async () => {
     assert.equal(PLAN_MAX_COMPLETION_TOKENS, 4000);
     assert.equal(BUDGET_MAX_COMPLETION_TOKENS, 1500);
+    assert.equal(PLAN_ENRICH_LIMIT, 6);
     assert.equal(ENRICH_REASONING_EFFORT, 'low');
     process.env.MUSE_API_KEY = 'test-key';
     const db = new DatabaseSync(':memory:');

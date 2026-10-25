@@ -16,7 +16,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export const ENRICH_BATCH = 6;
 /** New Muse enrichments a single plan request may start. Already-enriched rows are reused and do not count. */
-export const PLAN_ENRICH_LIMIT = 2;
+export const PLAN_ENRICH_LIMIT = 6;
 /** Reasoning tokens count against this budget. 1600 was spent entirely on reasoning and cut the JSON off. */
 export const ENRICH_MAX_TOKENS = 8192;
 /** Muse Spark rejects "none". "low" keeps a short reasoning pass so the JSON still fits. */
