@@ -93,9 +93,11 @@ describe('discovery search', () => {
     assert.doesNotMatch(requested, /mode=any/);
     assert.doesNotMatch(decodeURIComponent(requested), /best things to do/);
     assert.equal(found.source, 'openserp');
-    assert.deepEqual(
-      found.activities.map((activity) => activity.name),
-      ['Breakfast tacos on South Congress']
+    assert.ok(found.activities.some((activity) => activity.name === 'Breakfast tacos on South Congress'));
+    assert.ok(found.activities.length >= 3);
+    assert.equal(
+      found.activities.some((activity) => /best tacos|top \d+/i.test(activity.name)),
+      false
     );
     const names = db.prepare(`SELECT name FROM activities`).all() as Array<{ name: string }>;
     assert.equal(names.some((row) => row.name.endsWith(' Ad')), false);
@@ -119,6 +121,22 @@ describe('discovery search', () => {
     assert.equal(found.relaxed, true);
     assert.match(found.notice || '', /wider saved list/);
     assert.equal(found.activities[0]?.name, 'Saxon Pub');
+    db.close();
+  });
+
+  it('keeps a curated music room as a place when the description mentions a show', async () => {
+    const db = new DatabaseSync(':memory:');
+    const fetchImpl: typeof fetch = async () => new Response('nope', { status: 500 });
+    const found = await discoverActivities(db, {
+      location: 'Austin, TX',
+      now: new Date('2026-10-25T12:00:00.000Z'),
+      fetchImpl,
+      allowMuse: false,
+    });
+    const club = found.activities.find((activity) => activity.name === 'Continental Club');
+    assert.ok(club);
+    assert.equal(club.kind, 'place');
+    assert.equal(club.startDate, undefined);
     db.close();
   });
 
@@ -259,10 +277,9 @@ describe('discovery search', () => {
     );
     assert.equal(requested.some((url) => url.includes('mode=any')), false);
     assert.equal(found.source, 'openserp');
-    assert.deepEqual(
-      found.activities.map((activity) => activity.name),
-      ['Empire Baking Company']
-    );
+    const empire = found.activities.find((activity) => activity.name === 'Empire Baking Company');
+    assert.ok(empire);
+    assert.equal(empire.category, 'chill');
     db.close();
   });
 
@@ -381,6 +398,38 @@ describe('discovery search', () => {
       ['Doja Cat']
     );
     assert.equal(found.activities[0]?.priceListed, false);
+    db.close();
+  });
+
+  it('files an escape room from its title when the search category was food and the snippet mentions tacos', async () => {
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T12:00:00.000Z');
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            {
+              title: 'The Escape Game Austin',
+              url: 'https://theescapegame.com/austin/',
+              snippet: 'People also viewed tacos and restaurants',
+              domain: 'theescapegame.com',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    const found = await discoverActivities(db, {
+      query: 'escape room',
+      category: 'food',
+      location: 'Austin, TX',
+      now,
+      fetchImpl,
+      allowMuse: false,
+    });
+    const room = found.activities.find((activity) => activity.name === 'The Escape Game Austin');
+    assert.ok(room);
+    assert.equal(room.category, 'gaming');
+    assert.equal(room.categoryLabel, 'Gaming & Arcades');
     db.close();
   });
 });

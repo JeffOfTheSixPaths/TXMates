@@ -20,6 +20,7 @@ import {
 } from './discoverySearch';
 import { catalogActivitiesForSearch } from './eventCatalog';
 import { getActivitiesForLocation } from './mockData';
+import { withCuratedFallback } from './planCandidates';
 import type { SearchProviderEnv } from './searchProvider';
 import { openSerpTimeoutMs } from './serviceTimeouts';
 
@@ -60,6 +61,10 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
 
   const catalog = catalogActivitiesForSearch(category, query, now, location, input.catalogActivities);
   const withCatalog = (activities: Activity[]) => mergeActivities(activities, catalog);
+  const finish = (payload: DiscoveryPayload): DiscoveryPayload => ({
+    ...payload,
+    activities: withCuratedFallback(payload.activities, { location, category, query }),
+  });
 
   const saved = searchSavedActivities(db, { query, category, location });
   const cacheKey = discoveryCacheKey(location, category, query);
@@ -68,7 +73,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
   if (query && saved.relaxed) {
     const fromThisSearch = saved.rows.filter((row) => row.source_query === queryUsed);
     if (fromThisSearch.length > 0) {
-      return {
+      return finish({
         source: 'saved',
         isLive: false,
         refreshing: false,
@@ -76,7 +81,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         notice: null,
         queryUsed,
         activities: withCatalog(fromThisSearch.map((row) => toActivity(row, 'saved'))),
-      };
+      });
     }
 
     if (!fresh) {
@@ -97,7 +102,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
           .map((id) => getActivityRow(db, id))
           .filter((row): row is NonNullable<typeof row> => Boolean(row));
         if (liveRows.length > 0) {
-          return {
+          return finish({
             source: 'openserp',
             isLive: true,
             refreshing: false,
@@ -105,13 +110,13 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
             notice: null,
             queryUsed,
             activities: withCatalog(liveRows.map((row) => toActivity(row, 'live'))),
-          };
+          });
         }
       }
     }
 
     if (saved.rows.length > 0) {
-      return {
+      return finish({
         source: 'saved',
         isLive: false,
         refreshing: false,
@@ -119,10 +124,10 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         notice: widerAfterMiss(query),
         queryUsed,
         activities: withCatalog(saved.rows.map((row) => toActivity(row, 'saved'))),
-      };
+      });
     }
 
-    return fallbackPayload(category, query, queryUsed, catalog, location);
+    return finish(fallbackPayload(category, query, queryUsed, catalog, location));
   }
 
   if (saved.rows.length > 0) {
@@ -138,7 +143,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         searchEnv: input.searchEnv,
       });
     }
-    return {
+    return finish({
       source: 'saved',
       isLive: false,
       refreshing: !fresh,
@@ -146,10 +151,10 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
       notice: savedNotice(saved.relaxed, !fresh, query),
       queryUsed,
       activities: withCatalog(saved.rows.map((row) => toActivity(row, 'saved'))),
-    };
+    });
   }
 
-  if (fresh) return fallbackPayload(category, query, queryUsed, catalog, location);
+  if (fresh) return finish(fallbackPayload(category, query, queryUsed, catalog, location));
 
   const refreshed = await refreshDiscoveryQuery(db, {
     location,
@@ -168,7 +173,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     const again = searchSavedActivities(db, { query, category, location });
     if (again.rows.length > 0) {
       const liveIds = new Set(refreshed.ids);
-      return {
+      return finish({
         source: 'openserp',
         isLive: true,
         refreshing: false,
@@ -176,11 +181,11 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         notice: again.relaxed ? relaxedNotice(query) : null,
         queryUsed,
         activities: withCatalog(again.rows.map((row) => toActivity(row, liveIds.has(row.id) ? 'live' : 'saved'))),
-      };
+      });
     }
   }
 
-  return fallbackPayload(category, query, queryUsed, catalog, location);
+  return finish(fallbackPayload(category, query, queryUsed, catalog, location));
 }
 
 function mergeActivities(activities: Activity[], catalog: Activity[]): Activity[] {
@@ -209,13 +214,20 @@ function fallbackPayload(
     ...getActivitiesForLocation(city)
       .filter((activity) => category === 'all' || activity.category === category)
       .map((activity) => {
-        const classification = classifyListing({ title: activity.name, snippet: activity.description });
+        const alreadyClassified = activity.kind === 'place' || activity.kind === 'event';
+        const classification = alreadyClassified
+          ? null
+          : classifyListing({ title: activity.name, snippet: activity.description });
         return {
           ...activity,
           isLiveResult: false,
-          kind: classification.kind,
-          startDate: classification.startDate,
-          endDate: classification.endDate,
+          ...(classification
+            ? {
+                kind: classification.kind,
+                startDate: classification.startDate,
+                endDate: classification.endDate,
+              }
+            : {}),
           uncertainties: [`Curated ${cleanCity} venue catalog with verified neighborhood and realistic pricing`],
         };
       }),

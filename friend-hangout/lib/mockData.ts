@@ -1,4 +1,5 @@
 import type { Activity, Friend } from '@/types';
+import { curatedActivitiesForLocation } from './curatedActivities';
 
 export const AUSTIN_NEIGHBORHOODS = [
   'Downtown Austin',
@@ -945,6 +946,8 @@ export function generateDynamicCityActivities(cityName: string): Activity[] {
  * generates authentic activities for any arbitrary city (e.g. Seattle, Denver, Chicago).
  */
 export function getActivitiesForLocation(location?: string): Activity[] {
+  const curated = curatedActivitiesForLocation(location);
+  if (curated.length > 0) return curated;
   if (!location) return MOCK_ACTIVITIES;
   const loc = location.toLowerCase().trim();
 

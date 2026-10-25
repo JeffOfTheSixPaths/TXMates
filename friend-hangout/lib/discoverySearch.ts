@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { ActivityCategory } from '@/types';
 import { classifyListing } from './activityClassify';
+import { inferActivityCategory } from './activityCategory';
 import type { ActivityPolicy } from './activityPolicy';
 import {
   applyMuseEnrichment,
@@ -32,17 +33,6 @@ import {
 export { openSerpBaseUrl } from './serviceTimeouts';
 
 const CATEGORIES = new Set(['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill']);
-
-const CATEGORY_LABELS: Record<string, string> = {
-  food: 'Food & BBQ',
-  music: 'Live Music',
-  outdoors: 'Outdoors & Springs',
-  gaming: 'Gaming & Arcades',
-  sports: 'Sports & Active',
-  nightlife: 'Nightlife & Drinks',
-  arts: 'Arts & Culture',
-  chill: 'Cafe & Social Chill',
-};
 
 export const DISCOVERY_CATEGORIES = ['all', ...CATEGORIES] as const;
 
@@ -181,16 +171,19 @@ export async function refreshDiscoveryQuery(
     ) {
       continue;
     }
-    const combined = `${title} ${hit.snippet || ''}`;
-    const inferred = inferCategory(combined);
-    const finalCategory = asCategory(category !== 'all' ? category : inferred.category);
+    const inferred = inferActivityCategory({
+      title,
+      snippet: hit.snippet || '',
+      query,
+    });
+    const finalCategory = inferred.category;
     const classification = classifyListing({ title, snippet: hit.snippet || '', now });
     const saved = upsertActivity(db, {
       name: title,
       url,
       snippet: hit.snippet || `Discovered via ${discoveredVia} on ${hit.domain || 'the web'}`,
       category: finalCategory,
-      categoryLabel: category !== 'all' ? CATEGORY_LABELS[finalCategory] || inferred.label : inferred.label,
+      categoryLabel: inferred.label,
       location: `${location} (${hit.domain || 'Local venue'})`,
       neighborhood: hit.domain || `${cityLabel} Area`,
       estimatedCostPerPerson: estimateCost(finalCategory),
@@ -355,22 +348,6 @@ async function fetchActivitySearch(
   });
   const hits = await provider.search(searchText, fetchImpl, context);
   return { provider: provider.name, hits };
-}
-
-function inferCategory(text: string): { category: ActivityCategory; label: string } {
-  const lower = text.toLowerCase();
-  if (/\b(bbq|barbecue|food|taco|restaurant|eat)\b/.test(lower)) return { category: 'food', label: CATEGORY_LABELS.food };
-  if (/\b(music|concert|band|honky|jazz)\b/.test(lower)) return { category: 'music', label: CATEGORY_LABELS.music };
-  if (/\b(park|lake|swim|spring|kayak|outdoor)\b/.test(lower)) return { category: 'outdoors', label: CATEGORY_LABELS.outdoors };
-  if (/\b(arcade|game|pinball|golf)\b/.test(lower)) return { category: 'gaming', label: CATEGORY_LABELS.gaming };
-  if (/\b(climb|sport|gym|fitness)\b/.test(lower)) return { category: 'sports', label: CATEGORY_LABELS.sports };
-  if (/\b(bar|cocktail|beer|nightlife|brewery)\b/.test(lower)) return { category: 'nightlife', label: CATEGORY_LABELS.nightlife };
-  if (/\b(art|museum|gallery|sculpture)\b/.test(lower)) return { category: 'arts', label: CATEGORY_LABELS.arts };
-  return { category: 'chill', label: CATEGORY_LABELS.chill };
-}
-
-function asCategory(value: string): ActivityCategory {
-  return CATEGORIES.has(value) ? (value as ActivityCategory) : 'chill';
 }
 
 function estimateCost(category: ActivityCategory): number {

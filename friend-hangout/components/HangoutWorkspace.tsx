@@ -84,6 +84,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
         activities?: Activity[];
         limited?: boolean;
         filled?: boolean;
+        notice?: string;
       } | null
     >
   >({
@@ -320,6 +321,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
               activities: Array.isArray(data.activities) ? data.activities : undefined,
               limited: Boolean(data.limited),
               filled: Boolean(data.filled),
+              notice: typeof data.notice === 'string' ? data.notice : undefined,
             },
           }));
         }
@@ -376,6 +378,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
         museFromCache: live.cached,
         museCachedAt: live.cachedAt,
         museLimited: Boolean(live.limited),
+        museNotice: live.notice,
         nessieFinancialInsight: museMoney
           ? { ...base.nessieFinancialInsight, budgetTip: museMoney }
           : base.nessieFinancialInsight,

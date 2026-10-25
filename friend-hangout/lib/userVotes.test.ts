@@ -201,12 +201,11 @@ describe('user item votes and persistent recommendation penalties', () => {
 
     // 1. Generate default overall plan without downvotes
     const defaultPlan = generatePlan(prefs, 'overall');
-    const defaultActivityIds = defaultPlan.activities.map((a) => a.id);
 
     // Pick an activity that was selected by default
-    const firstSelectedId = defaultActivityIds[0];
+    const firstSelectedAct = defaultPlan.activities[0];
+    const firstSelectedId = firstSelectedAct?.id;
     assert.ok(firstSelectedId, 'A default activity must be selected');
-    const firstSelectedAct = MOCK_ACTIVITIES.find((a) => a.id === firstSelectedId);
     assert.ok(firstSelectedAct);
 
     // 2. Downvote that activity

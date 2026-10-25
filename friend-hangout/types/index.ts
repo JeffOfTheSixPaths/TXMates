@@ -27,6 +27,7 @@ export interface Activity {
   tags: string[];
   imageUrl?: string;
   sourceUrl?: string;
+  sourceQuery?: string;
   isLiveResult?: boolean;
   uncertainties?: string[];
   kind?: 'event' | 'place';
@@ -173,6 +174,7 @@ export interface HangoutPlan {
   museFromCache?: boolean;
   museCachedAt?: string;
   museLimited?: boolean;
+  museNotice?: string;
 }
 
 export interface VoteRecord {

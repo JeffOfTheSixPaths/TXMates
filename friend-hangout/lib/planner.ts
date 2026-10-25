@@ -10,6 +10,8 @@ import type {
   TimeSlot,
 } from '@/types';
 import { getActivitiesForLocation } from './mockData';
+import { localPlanCopy } from './musePlan';
+import { orderForDay, prefersWindow, takeVaried } from './planCandidates';
 import { isActivityDownvoted } from './userVotes';
 import type { HangoutBudgetEstimate } from './nessieBudget';
 
@@ -302,6 +304,12 @@ export function buildItinerary(
   return items;
 }
 
+function pickWindowed(pool: Activity[], preferences: HangoutPreferences): Activity[] {
+  const timed = pool.filter((activity) => prefersWindow(activity, preferences.timePreference));
+  const active = timed.length >= 3 ? timed : pool;
+  return orderForDay(takeVaried(active, 3), preferences.timePreference);
+}
+
 /**
  * Generate plan based on view type
  */
@@ -354,9 +362,8 @@ export function generatePlan(
     const nonDownvoted = candidateActivities.filter((a) => !isDownvoted(a));
     const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : candidateActivities;
 
-    // Pick 3 diverse cheap activities
-    chosenActivities = poolForSelection.slice(0, 3);
-    aiRationale = `Meta Muse Spark curated 3 ultra-affordable ${cleanCity} favorites with a blended average cost well under $${maxBudgetPerPerson}/person. Keeps your crew energized without financial stress.`;
+    chosenActivities = pickWindowed(poolForSelection, preferences);
+    aiRationale = '';
   } else if (viewType === 'interests') {
     title = 'Interests & Passion Deep-Dive';
     subtitle = 'Tailored strictly around your group’s chosen categories and vibe preferences.';
@@ -370,6 +377,8 @@ export function generatePlan(
       const scoreA = getInterestScore(a);
       const scoreB = getInterestScore(b);
       if (scoreB !== scoreA) return scoreB - scoreA;
+      const signature = Number(b.tags?.includes('signature')) - Number(a.tags?.includes('signature'));
+      if (signature !== 0) return signature;
       return b.rating - a.rating;
     });
 
@@ -382,8 +391,8 @@ export function generatePlan(
     const nonDownvoted = activePool.filter((a) => !isDownvoted(a));
     const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : activePool;
 
-    chosenActivities = poolForSelection.slice(0, 3);
-    aiRationale = `Meta Muse Spark prioritized top-rated venues matching your selected interests (${selectedInterests.join(', ') || 'all categories'}). Highly rated spots designed to guarantee maximum engagement.`;
+    chosenActivities = pickWindowed(poolForSelection, preferences);
+    aiRationale = '';
   } else {
     // 'overall' - Best balanced match
     title = `The Prime ${cleanCity} Match`;
@@ -406,35 +415,23 @@ export function generatePlan(
 
       const voteBonusA = isUpvoted(a) ? 20 : 0;
       const voteBonusB = isUpvoted(b) ? 20 : 0;
+      const signatureA = a.tags?.includes('signature') ? 12 : 0;
+      const signatureB = b.tags?.includes('signature') ? 12 : 0;
 
-      const totalA = intScoreA + budgetFitA + ratingScoreA + voteBonusA;
-      const totalB = intScoreB + budgetFitB + ratingScoreB + voteBonusB;
+      const totalA = intScoreA + budgetFitA + ratingScoreA + voteBonusA + signatureA;
+      const totalB = intScoreB + budgetFitB + ratingScoreB + voteBonusB + signatureB;
 
       return totalB - totalA;
     });
 
-    // Select 3 activities ensuring category variety if possible, preferring non-downvoted
-    const selected: Activity[] = [];
-    const usedCategories = new Set<string>();
     const nonDownvoted = candidateActivities.filter((a) => !isDownvoted(a));
     const poolForSelection = nonDownvoted.length >= 3 ? nonDownvoted : candidateActivities;
-
-    for (const act of poolForSelection) {
-      if (selected.length >= 3) break;
-      if (!usedCategories.has(act.category) || selected.length >= poolForSelection.length - 1) {
-        selected.push(act);
-        usedCategories.add(act.category);
-      }
-    }
-
-    if (selected.length < 3) {
-      chosenActivities = poolForSelection.slice(0, 3);
-    } else {
-      chosenActivities = selected;
-    }
-
-    aiRationale = `Meta Muse Spark engineered this itinerary for balanced group harmony. Combines relaxing group activities with iconic ${cleanCity} flavor, timed perfectly with your group's availability window.`;
+    chosenActivities = pickWindowed(poolForSelection, preferences);
+    aiRationale = '';
   }
+
+  const copy = localPlanCopy(chosenActivities, cleanCity);
+  aiRationale = copy.aiRationale;
 
   // Cost calculation
   const totalCostPerPerson = chosenActivities.reduce(
@@ -500,6 +497,8 @@ export function generatePlan(
     budgetUtilizationPercentage,
     matchScore,
     aiRationale,
+    aiIcebreaker: copy.aiIcebreaker,
+    aiCoordinationTip: copy.aiCoordinationTip,
     nessieFinancialInsight: {
       budgetStatus,
       savingsPerPerson,

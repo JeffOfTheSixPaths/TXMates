@@ -67,19 +67,28 @@ export function groupSizeInstruction(total: number): string {
 }
 
 const LISTICLE_TITLE = /^\s*\d+\s+(best|top|great|fun|ultimate|essential|must|amazing)\b/i;
+const LISTICLE_LEAD = /^\s*(the\s+)?(absolute\s+|ultimate\s+)?(best|top)\b/i;
+const PUBLISHER_SUFFIX =
+  /\|\s*[^|]{0,48}\b(magazine|eater|houstonia|timeout|chronicle|infatuation|thrillist|texas monthly|do512|tripadvisor)\b/i;
 
-export function isListicleListing(name: string): boolean {
+export function isListicleListing(name: string, url?: string): boolean {
+  if (url && /yelp\.com\/search/i.test(url)) return true;
+  if (url && /(?:youtube\.com|youtu\.be)/i.test(url)) return true;
   const title = name.trim();
+  if (!title) return false;
   return (
     LISTICLE_TITLE.test(title) ||
+    LISTICLE_LEAD.test(title) ||
     /\b(best|top)\s+\d+\b/i.test(title) ||
     /\b\d+\s+best\b/i.test(title) ||
+    /\bbest\b[^|]{0,60}\bin\b/i.test(title) ||
+    PUBLISHER_SUFFIX.test(title) ||
     /\b(things to do|group activities|date ideas|bucket list)\b/i.test(title)
   );
 }
 
-export function isGenericFillerActivity(activity: { id?: string; name: string }): boolean {
-  return Boolean(activity.id?.startsWith('dyn-')) || isListicleListing(activity.name);
+export function isGenericFillerActivity(activity: { id?: string; name: string; sourceUrl?: string }): boolean {
+  return Boolean(activity.id?.startsWith('dyn-')) || isListicleListing(activity.name, activity.sourceUrl);
 }
 
 export function fillPlanPicks<T extends { id: string; name: string }>(
@@ -120,12 +129,65 @@ export function shouldCacheMusePlan(input: {
   return true;
 }
 
+const CITY_NOTE: Record<string, string> = {
+  austin: 'Austin wants a spring, a table, or a stage, not a list of best-ofs.',
+  houston: 'Keep Houston in one part of town: a bayou, a museum district, or a neighborhood joint.',
+  dallas: 'Dallas lands better at Klyde Warren, Deep Ellum, or a real room than a donut roundup.',
+  'san antonio': 'San Antonio hangs together on the River Walk or at the Pearl.',
+};
+
+const CITY_TIP: Record<string, string> = {
+  austin: 'Park once near South Congress or the lake and walk the middle stop. Rideshares stack up after dark.',
+  houston: 'Houston is a driving city. Park for the first stop and do not cross the loop again for the third.',
+  dallas: 'Klyde Warren and Deep Ellum are the easy handoffs. The Design District and Arlington need a car.',
+  'san antonio': 'The River Walk and the Pearl are different trips if you are walking. Leave a rideshare between them.',
+};
+
+function cityKey(city: string): string {
+  return city
+    .trim()
+    .toLowerCase()
+    .replace(/,?\s*tx$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function rationaleFromActivities(names: string[], city: string): string {
   const clean = names.map((name) => name.trim()).filter(Boolean);
-  if (clean.length === 0) return '';
-  if (clean.length === 1) return `${clean[0]} in ${city}.`;
-  const head = clean.slice(0, -1).join(', ');
-  return `${head}, and ${clean[clean.length - 1]} in ${city}.`;
+  const note = CITY_NOTE[cityKey(city)] || `Keep every stop in ${city}.`;
+  if (clean.length === 0) return note;
+  if (clean.length === 1) return `${clean[0]} in ${city}. ${note}`;
+  if (clean.length === 2) return `${clean[0]}, then ${clean[1]}. ${note}`;
+  return `${clean[0]}, then ${clean[1]}, and finish at ${clean[clean.length - 1]}. ${note}`;
+}
+
+const ICEBREAKER: Record<string, (name: string, city: string) => string> = {
+  food: (name, city) => `Who has the strongest ${city} food opinion, and will they defend it at ${name}?`,
+  music: (name) => `At ${name}, everyone names the first song that would get them out of the chair.`,
+  outdoors: (name) => `First person to ${name} picks the photo spot. Everyone else has to use it.`,
+  gaming: (name) => `At ${name}, loser of the first game owes the group a round of water.`,
+  sports: (name, city) => `Before ${name}, pick a ${city} team and stick with it for the rest of the day.`,
+  nightlife: (name) => `At ${name}, each person owes the group one story from this year.`,
+  arts: (name) => `Inside ${name}, find one thing you would actually send to the group chat.`,
+  chill: (name) => `At ${name}, phones stay down until everyone has a drink in hand.`,
+};
+
+export function localPlanCopy(
+  activities: Array<{ name: string; category: string }>,
+  city: string
+): { aiRationale: string; aiIcebreaker: string; aiCoordinationTip: string } {
+  const first = activities[0];
+  const icebreaker = first
+    ? (ICEBREAKER[first.category] || ICEBREAKER.chill)(first.name, city)
+    : `What is the one thing this ${city} day has to include?`;
+  return {
+    aiRationale: rationaleFromActivities(
+      activities.map((activity) => activity.name),
+      city
+    ),
+    aiIcebreaker: icebreaker,
+    aiCoordinationTip: CITY_TIP[cityKey(city)] || 'Leave twenty minutes between stops so nobody is sprinting.',
+  };
 }
 
 export function museBudgetForPrompt(
@@ -172,7 +234,7 @@ export function planPromptCacheKey(input: {
     .map((activity) => `${activity.id}|${activity.name}|${activity.category}|${activity.estimatedCostPerPerson}`)
     .sort();
   const raw = JSON.stringify({
-    v: 'plan-v1',
+    v: 'plan-v2',
     view: input.viewType,
     group: (input.preferences.groupName || '').trim().toLowerCase(),
     date: input.preferences.date,
@@ -264,18 +326,30 @@ export function parseBudgetCopy(content: string): BudgetCopy | null {
   return { explanation, tips: stringList(record.tips, 3, 180) };
 }
 
+const WHY_LEAD: Record<string, string> = {
+  food: 'Feed the group at a real {city} table',
+  music: 'Give the night a live room in {city}',
+  outdoors: 'Get everyone outside while the day is still easy in {city}',
+  gaming: 'Put a game between the group instead of another scroll through {city}',
+  sports: 'Spend the energy somewhere built for a group in {city}',
+  nightlife: 'Land a round at a {city} bar people already know',
+  arts: 'Put a real {city} museum or hall on the day',
+  chill: 'Start with coffee so the group can actually talk in {city}',
+};
+
 export function heuristicWhy(
-  activity: { category: string; estimatedCostPerPerson: number },
+  activity: { category: string; estimatedCostPerPerson: number; name?: string },
   interests: string[],
   cap: number,
   location = 'Austin, TX'
 ): string {
   const city = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
-  const interest = interests.includes(activity.category)
-    ? 'It matches an interest the group turned on'
-    : `It is a ${city} stop the group can share`;
-  const money = activity.estimatedCostPerPerson <= cap ? `and stays within the $${cap} cap` : `though it runs above the $${cap} cap`;
-  return `${interest} ${money}.`;
+  const template = WHY_LEAD[activity.category] || 'It is a {city} stop the group can share';
+  const lead = template.replaceAll('{city}', city);
+  const interest = interests.includes(activity.category) ? ' It matches an interest the group turned on.' : '';
+  const money =
+    activity.estimatedCostPerPerson <= cap ? `and stays within the $${cap} cap` : `though it runs above the $${cap} cap`;
+  return `${lead} ${money}.${interest}`;
 }
 
 function parseJson(content: string): unknown {

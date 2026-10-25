@@ -1,4 +1,5 @@
 import { searchTokens } from './catalogSearch';
+import { isListicleListing } from './musePlan';
 import { resolveTimeoutMs } from './serviceTimeouts';
 
 export type ActivityPolicy = {
@@ -279,6 +280,7 @@ export function discoveryHitRejection(input: DiscoveryHitCheck): string | null {
   const title = input.title?.trim() || '';
   if (!title) return 'empty-title';
   if (blockedDiscoveryUrl(input.url)) return 'blocked-url';
+  if (isListicleListing(title, input.url)) return 'listicle';
   if (JUNK_TITLE.test(title)) return 'junk-title';
   const evidence = `${title} ${input.snippet || ''} ${input.url}`;
   if (namesOtherCity(evidence, input.location)) return 'other-city';

@@ -72,7 +72,7 @@ export function stablePlanCacheKey(input: {
   viewType: string;
 }): string {
   const normalized = {
-    v: 'plan-stable-v1',
+    v: 'plan-stable-v2',
     hangoutId: (input.hangoutId || '').trim(),
     city: input.city.trim().toLowerCase().replace(/\s+/g, ' '),
     windowStart: input.windowStart,
