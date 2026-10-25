@@ -528,36 +528,36 @@ export default function Home() {
                   }}
                 />
                 <div className="mt-6">
-                <HangoutForm
-                  preferences={preferences}
-                  onChange={(next) => {
-                    if (next.maxBudgetPerPerson !== preferences.maxBudgetPerPerson) {
-                      budgetTouched.current = true;
-                    }
-                    if (next.friends.length !== preferences.friends.length) {
+                  <HangoutForm
+                    preferences={preferences}
+                    onChange={(next) => {
+                      if (next.maxBudgetPerPerson !== preferences.maxBudgetPerPerson) {
+                        budgetTouched.current = true;
+                      }
+                      if (next.friends.length !== preferences.friends.length) {
+                        setNessieLoading(true);
+                      }
+                      setPreferences(next);
+                    }}
+                    onGenerate={handleGenerate}
+                    isGenerating={isGenerating}
+                    nessie={nessie}
+                    nessieLoading={nessieLoading}
+                    onSelectCustomer={(customerId) => {
+                      budgetTouched.current = false;
                       setNessieLoading(true);
-                    }
-                    setPreferences(next);
-                  }}
-                  onGenerate={handleGenerate}
-                  isGenerating={isGenerating}
-                  nessie={nessie}
-                  nessieLoading={nessieLoading}
-                  onSelectCustomer={(customerId) => {
-                    budgetTouched.current = false;
-                    setNessieLoading(true);
-                    setNessieAccountId('');
-                    setNessieCustomerId(customerId);
-                  }}
-                  onSelectAccount={(accountId) => {
-                    budgetTouched.current = false;
-                    setNessieLoading(true);
-                    setNessieAccountId(accountId);
-                  }}
-                  squadAdvisory={squadAdvisory}
-                  squadAdvisoryLoading={squadAdvisoryLoading}
-                  onApplySquadPricePoint={handleApplySquadPricePoint}
-                />
+                      setNessieAccountId('');
+                      setNessieCustomerId(customerId);
+                    }}
+                    onSelectAccount={(accountId) => {
+                      budgetTouched.current = false;
+                      setNessieLoading(true);
+                      setNessieAccountId(accountId);
+                    }}
+                    squadAdvisory={squadAdvisory}
+                    squadAdvisoryLoading={squadAdvisoryLoading}
+                    onApplySquadPricePoint={handleApplySquadPricePoint}
+                  />
                 </div>
               </div>
             </div>

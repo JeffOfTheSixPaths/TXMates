@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Copy, Link2 } from 'lucide-react';
 import { parseInviteInput } from '@/lib/organizerAccount';
@@ -13,10 +13,37 @@ type SavedAccount = {
   importStatements: boolean;
 };
 
-function readSavedAccount(): SavedAccount | null {
+const EMPTY_ACCOUNT: SavedAccount = { name: '', email: '', importStatements: false };
+
+// The saved account lives in localStorage and is read with useSyncExternalStore,
+// so the server render and first client render agree (empty) with no hydration mismatch.
+const listeners = new Set<() => void>();
+let memoryFallback: string | null = null;
+
+function subscribe(callback: () => void) {
+  listeners.add(callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    listeners.delete(callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+
+function getRawAccount(): string | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+    return localStorage.getItem(STORAGE_KEY) ?? memoryFallback;
+  } catch {
+    return memoryFallback;
+  }
+}
+
+function getServerRawAccount(): string | null {
+  return null;
+}
+
+function parseSavedAccount(raw: string | null): SavedAccount {
+  if (!raw) return EMPTY_ACCOUNT;
+  try {
     const parsed = JSON.parse(raw) as Partial<SavedAccount>;
     return {
       name: typeof parsed.name === 'string' ? parsed.name : '',
@@ -24,16 +51,23 @@ function readSavedAccount(): SavedAccount | null {
       importStatements: parsed.importStatements === true,
     };
   } catch {
-    return null;
+    return EMPTY_ACCOUNT;
   }
 }
 
 function writeSavedAccount(account: SavedAccount) {
+  const raw = JSON.stringify(account);
+  memoryFallback = raw;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+    localStorage.setItem(STORAGE_KEY, raw);
   } catch {
     // Private mode or quota. The fields still work for this visit.
   }
+  listeners.forEach((listener) => listener());
+}
+
+function subscribeNoop() {
+  return () => {};
 }
 
 interface OrganizerAccountProps {
@@ -45,43 +79,36 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
   const router = useRouter();
   const statementHintId = useId();
   const inviteHintId = useId();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [importStatements, setImportStatements] = useState(false);
+  const rawAccount = useSyncExternalStore(subscribe, getRawAccount, getServerRawAccount);
+  const account = useMemo(() => parseSavedAccount(rawAccount), [rawAccount]);
+  const { name, email, importStatements } = account;
+  const origin = useSyncExternalStore(subscribeNoop, () => window.location.origin, () => '');
   const [copied, setCopied] = useState(false);
   const [joinValue, setJoinValue] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
 
-  const invitePath = `/avail/${hangoutId}`;
-  const onNameChangeRef = React.useRef(onNameChange);
-  onNameChangeRef.current = onNameChange;
-
+  const invitePath = `/avail/${encodeURIComponent(hangoutId)}`;
+  const onNameChangeRef = useRef(onNameChange);
   useEffect(() => {
-    const saved = readSavedAccount();
-    if (saved) {
-      setName(saved.name);
-      setEmail(saved.email);
-      setImportStatements(saved.importStatements);
-      if (saved.name) onNameChangeRef.current?.(saved.name);
-    }
-    setHydrated(true);
-  }, []);
+    onNameChangeRef.current = onNameChange;
+  }, [onNameChange]);
 
+  // Keep the first friend slot in sync with the saved name (on load and as it is typed).
   useEffect(() => {
-    if (!hydrated) return;
-    writeSavedAccount({ name, email, importStatements });
-  }, [hydrated, name, email, importStatements]);
+    if (name) onNameChangeRef.current?.(name);
+  }, [name]);
+
+  const updateAccount = (patch: Partial<SavedAccount>) => {
+    writeSavedAccount({ ...account, ...patch });
+  };
 
   const handleNameChange = (next: string) => {
-    setName(next);
-    onNameChange?.(next);
+    updateAccount({ name: next });
   };
 
   const handleCopyInvite = async () => {
-    const absolute =
-      typeof window === 'undefined' ? invitePath : `${window.location.origin}${invitePath}`;
+    const absolute = `${window.location.origin}${invitePath}`;
     try {
       await navigator.clipboard.writeText(absolute);
       setCopied(true);
@@ -142,7 +169,7 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
             name="organizer-email"
             autoComplete="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => updateAccount({ email: event.target.value })}
             placeholder="you@email.com"
             className={`mt-1 ${fieldClass}`}
           />
@@ -160,8 +187,8 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
           <span className="grid w-11 shrink-0 place-items-center text-ink-soft" aria-hidden>
             <Link2 className="h-4 w-4" />
           </span>
-          <span suppressHydrationWarning className="hidden shrink-0 items-center text-sm text-ink-soft sm:flex">
-            {typeof window === 'undefined' ? '' : window.location.origin}
+          <span className="hidden shrink-0 items-center text-sm text-ink-soft sm:flex">
+            {origin}
           </span>
           <input
             id="organizer-invite"
@@ -226,18 +253,21 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
           <input
             type="checkbox"
             checked={importStatements}
-            onChange={(event) => setImportStatements(event.target.checked)}
+            onChange={(event) => updateAccount({ importStatements: event.target.checked })}
             aria-describedby={statementHintId}
             className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-leaf"
           />
           <span>
             <span className="font-semibold">
-              Import Capital One bank statements to better understand this group's budget
+              Import Capital One bank statements to better understand your budget
+            </span>
+            <span className="ml-2 inline-block border border-seam px-1.5 py-0.5 align-middle text-xs font-semibold uppercase tracking-wide text-ink-soft">
+              Coming soon
             </span>
             <span id={statementHintId} className="mt-1 block text-sm text-ink-soft">
               {importStatements
-                ? 'Marked for this device. A live statement import is not wired yet, so Nessie still uses the demo customer read.'
-                : 'Demo only. Checking this remembers the preference. Nothing is sent to Capital One.'}
+                ? 'Placeholder: saved on this device only. Statement import is not built yet, so budgets still come from the Nessie demo data.'
+                : 'Placeholder, not functional yet. Checking this only saves a preference on this device. Nothing is sent to Capital One.'}
             </span>
           </span>
         </label>
