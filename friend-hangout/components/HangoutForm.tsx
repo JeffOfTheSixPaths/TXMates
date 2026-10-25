@@ -232,7 +232,7 @@ export function HangoutForm({
               type="text"
               value={preferences.groupName}
               onChange={(e) => onChange({ ...preferences, groupName: e.target.value })}
-              placeholder="The goobers"
+              placeholder="Group Name Here"
               required
               className={`mt-1 ${fieldClass}`}
             />

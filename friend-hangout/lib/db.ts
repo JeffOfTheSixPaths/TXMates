@@ -160,7 +160,7 @@ export function getHangoutFromDb(hangoutId: string): HangoutPreferences | null {
   if (!row) {
     saveHangoutToDb({
       id: hangoutId,
-      groupName: 'The goobers',
+      groupName: 'Group Name Here',
       location: 'Austin, TX',
       date: '2026-10-26',
       timePreference: 'afternoon',
@@ -258,7 +258,7 @@ export function updateFriendSubmission(
   if (!hangout) {
     saveHangoutToDb({
       id: hangoutId,
-      groupName: 'The goobers',
+      groupName: 'Group Name Here',
       location: 'Austin, TX',
       date: '2026-10-26',
       timePreference: 'afternoon',

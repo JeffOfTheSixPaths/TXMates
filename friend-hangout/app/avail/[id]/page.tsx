@@ -75,7 +75,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
       // Fallback default
       setHangout({
         id: hangoutId,
-        groupName: 'The goobers',
+        groupName: 'Group Name Here',
         friendCount: 4,
         location: 'Austin, TX',
         date: '2026-10-26',
@@ -183,7 +183,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
         <header className="border border-seam bg-cola px-5 py-6 text-paper sm:px-7">
           <p className="text-sm text-paper-dim">TXMates availability</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            {hangout?.groupName || "The goobers"}
+            {hangout?.groupName || "Group Name Here"}
           </h1>
           <p className="mt-2 max-w-prose text-base text-paper-dim">
             Mark the hours you are free. The same scale the organizer sees fills in as you change the window.

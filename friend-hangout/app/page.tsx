@@ -28,7 +28,7 @@ function formatHangoutDate(iso: string) {
 }
 
 const DEFAULT_PREFERENCES: HangoutPreferences = {
-  groupName: 'The goobers',
+  groupName: 'Group Name Here',
   friendCount: 4,
   location: 'Austin, TX',
   date: '2026-10-26',
