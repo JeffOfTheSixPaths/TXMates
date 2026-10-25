@@ -1,6 +1,6 @@
 # TXMates app
 
-This folder is the Next.js app. Setup, OpenSERP, Nessie, Muse, SQLite, and the Austin event calendar are in the [repository README](../README.md).
+This folder is the Next.js app. Setup, OpenSERP, SerpApi, Nessie, Muse, SQLite, and the Austin event calendar are in the [repository README](../README.md).
 
 ```bash
 npm install

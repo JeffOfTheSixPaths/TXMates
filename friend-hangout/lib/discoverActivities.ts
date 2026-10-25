@@ -20,6 +20,7 @@ import {
 } from './discoverySearch';
 import { catalogActivitiesForSearch } from './eventCatalog';
 import { getActivitiesForLocation } from './mockData';
+import type { SearchProviderEnv } from './searchProvider';
 import { openSerpTimeoutMs } from './serviceTimeouts';
 
 export type DiscoveryPayload = {
@@ -42,6 +43,7 @@ export type DiscoverInput = {
   allowMuse?: boolean;
   awaitMuse?: boolean;
   catalogActivities?: Activity[];
+  searchEnv?: SearchProviderEnv;
 };
 
 export async function discoverActivities(db: DatabaseSync, input: DiscoverInput = {}): Promise<DiscoveryPayload> {
@@ -87,6 +89,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         policy,
         allowMuse,
         awaitMuse,
+        searchEnv: input.searchEnv,
       });
       if (refreshed.ok && refreshed.ids.length > 0) {
         if (allowMuse && !awaitMuse) scheduleMuseClassification(db, refreshed.ids, input.fetchImpl);
@@ -132,6 +135,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
         fetchImpl: input.fetchImpl,
         policy,
         allowMuse,
+        searchEnv: input.searchEnv,
       });
     }
     return {
@@ -156,6 +160,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     policy,
     allowMuse,
     awaitMuse,
+    searchEnv: input.searchEnv,
   });
 
   if (refreshed.ok) {
