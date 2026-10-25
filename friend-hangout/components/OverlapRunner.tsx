@@ -96,7 +96,7 @@ export function OverlapRunner({
           })}
         </div>
       </div>
-      <ul className="mt-2 flex flex-wrap gap-4 text-sm">
+      <ul className="mt-3 flex flex-wrap gap-4 text-sm">
         <li className="inline-flex items-center gap-2">
           <HeatSwatch count={0} total={4} />
           None free
@@ -110,7 +110,6 @@ export function OverlapRunner({
           Everyone free
         </li>
       </ul>
-      <p className="mt-1 text-sm">The green gets deeper as more mates can make that hour.</p>
     </figure>
   );
 }

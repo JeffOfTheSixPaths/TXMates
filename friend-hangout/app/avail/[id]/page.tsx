@@ -282,12 +282,12 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-pine px-4 py-8 text-ink sm:px-6">
+    <div className="min-h-screen bg-pine px-4 py-8 text-ink sm:px-6 sm:py-12">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <Link
             href={hangoutId === "txmates-demo" ? "/" : `/h/${hangoutId}`}
-            className="inline-flex min-h-11 items-center gap-1.5 border border-seam bg-sheet px-3 text-base font-semibold text-ink"
+            className="inline-flex min-h-11 items-center gap-1.5 text-base font-semibold text-ink"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back to the plan
@@ -302,13 +302,12 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
           </button>
         </div>
 
-        <header className="border border-seam bg-cola px-5 py-6 text-paper sm:px-7">
-          <p className="text-sm text-paper-dim">TXMates availability</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+        <header className="bg-cola px-5 py-7 text-paper sm:px-8">
+          <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
             {hangout?.groupName || "Group Name Here"}
           </h1>
-          <p className="mt-2 max-w-prose text-base text-paper-dim">
-            Mark the hours you are free. The same scale the organizer sees fills in as you change the window.
+          <p className="mt-3 max-w-prose text-base text-paper-dim">
+            Mark the hours you are free.
           </p>
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-paper">
             <span className="inline-flex items-center gap-1.5">
@@ -326,7 +325,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
           </p>
         </header>
 
-        <div className="border border-t-0 border-seam bg-sheet px-5 py-6 sm:px-7">
+        <div className="bg-sheet px-5 py-8 sm:px-8">
           {submitted ? (
             <div className="text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-leaf" aria-hidden />
@@ -352,9 +351,9 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-10">
               <fieldset>
-                <legend className="text-lg font-semibold text-ink">Who are you?</legend>
+                <legend className="text-xl font-semibold text-ink">Who are you?</legend>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {hangout?.friends.map((f) => {
                     const isSelected = f.id === selectedFriendId;
@@ -363,8 +362,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                         type="button"
                         key={f.id}
                         onClick={() => handleSelectFriend(f)}
-                        className={`flex min-h-11 items-center gap-2 border px-2 text-left ${
-                          isSelected ? "border-ink bg-sun text-ink" : "border-seam bg-pine text-ink"
+                        className={`flex min-h-11 items-center gap-2 px-2 text-left ${
+                          isSelected ? "bg-sun text-ink" : "bg-pine text-ink"
                         }`}
                       >
                         <span className={`grid h-8 w-8 shrink-0 place-items-center text-sm font-semibold ${f.avatarColor}`}>
@@ -373,7 +372,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                         <div className="min-w-0">
                           <span className="truncate block text-sm font-semibold">{f.name}</span>
                           {f.calendarSynced && (
-                            <span className="block text-[10px] font-semibold text-leaf">GCal Synced</span>
+                            <span className="block text-xs font-semibold text-leaf">Calendar</span>
                           )}
                         </div>
                       </button>
@@ -392,18 +391,18 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 </label>
               </fieldset>
 
-              <fieldset className="border-t border-seam pt-6">
-                <legend className="text-lg font-semibold text-ink">
+              <fieldset className="pt-2">
+                <legend className="text-xl font-semibold text-ink">
                   When are you free? {formatFriendlyDate(activeDate)}
                 </legend>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Sync your Google Calendar to auto-fill your open window, or choose a preset below.
+                  Sync a calendar, or pick a preset.
                 </p>
 
                 {candidateDatesList.length > 1 && (
-                  <div className="mt-4 border border-seam bg-pine p-3">
-                    <p className="text-xs font-semibold text-ink">
-                      Proposed Dates ({candidateDatesList.length}) - Select a date to enter availability:
+                  <div className="mt-4 bg-pine p-3">
+                    <p className="text-sm font-semibold text-ink">
+                      Dates ({candidateDatesList.length})
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {candidateSummaries.map((cd) => {
@@ -414,22 +413,20 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                             type="button"
                             key={cd.date}
                             onClick={() => handleSwitchDateTab(cd.date)}
-                            className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-semibold transition-all ${
-                              isTabActive
-                                ? "border-ink bg-sun text-ink shadow-sm ring-1 ring-ink"
-                                : "border-seam bg-sheet text-ink hover:bg-pine"
+                            className={`inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-semibold ${
+                              isTabActive ? "bg-sun text-ink" : "bg-sheet text-ink"
                             }`}
                           >
                             <Calendar className="h-3.5 w-3.5" aria-hidden />
                             <span>{cd.formattedDate}</span>
                             {cd.isBest && (
-                              <span className="inline-flex items-center gap-0.5 bg-ink px-1 py-0.5 text-[10px] font-bold text-paper">
+                              <span className="inline-flex items-center gap-0.5 bg-ink px-1 py-0.5 text-xs font-semibold text-paper">
                                 <Star className="h-2.5 w-2.5 fill-current text-sun" />
                                 Best
                               </span>
                             )}
                             {hasCustomSlot && (
-                              <span className="text-[11px] font-bold text-leaf">✓</span>
+                              <span className="text-xs font-semibold text-leaf">Saved</span>
                             )}
                           </button>
                         );
@@ -537,7 +534,7 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                 </div>
               </fieldset>
 
-              <div className="border-t border-seam pt-6">
+              <div className="pt-2">
                 <When2MeetGrid
                   dates={candidateDatesList}
                   friends={hangout?.friends || INITIAL_FRIENDS}
@@ -558,22 +555,22 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                       setEndTime(currentActiveSlot.endTime);
                     }
                   }}
-                  title="When2Meet Availability Schedule"
+                  title="When2Meet"
                 />
               </div>
 
-              <div className="border-t border-seam pt-6">
-                <h2 className="text-lg font-semibold text-ink">Group overlap</h2>
+              <div>
+                <h2 className="text-xl font-semibold text-ink">Group overlap</h2>
                 <OverlapRunner
                   hours={runnerHours}
-                  summary={`Availability for ${formatFriendlyDate(activeDate)}. Full green means every mate is free. Switch candidate dates above to compare.`}
+                  summary={`${formatFriendlyDate(activeDate)}. Deeper green means more mates are free.`}
                 />
               </div>
 
-              <fieldset className="border-t border-seam pt-6">
-                <legend className="text-lg font-semibold text-ink">Budget and interests</legend>
+              <fieldset>
+                <legend className="text-xl font-semibold text-ink">Budget and interests</legend>
                 <p className="mt-1 text-base text-ink-soft">
-                  Used to shape the Austin itinerary. This slider is your comfort level, not a second bank read.
+                  Your comfort level, not a second bank read.
                 </p>
                 <label className="mt-4 block text-base text-ink">
                   <span className="flex items-baseline justify-between gap-3">
@@ -599,8 +596,8 @@ function AvailabilityPageContent({ params, searchParams }: AvailPageProps) {
                         type="button"
                         key={cat.id}
                         onClick={() => toggleInterest(cat.id as ActivityCategory)}
-                        className={`inline-flex min-h-11 items-center gap-2 border px-3 text-base font-semibold ${
-                          isSelected ? "border-ink bg-sun text-ink" : "border-seam bg-pine text-ink"
+                        className={`inline-flex min-h-11 items-center gap-2 px-3 text-base font-semibold ${
+                          isSelected ? "bg-sun text-ink" : "bg-pine text-ink"
                         }`}
                       >
                         <Icon className="h-4 w-4" aria-hidden />
@@ -632,7 +629,7 @@ export default function AvailabilityPage(props: AvailPageProps) {
   return (
     <React.Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#FAF7F2] p-8 text-sm font-semibold text-slate-500">
+        <div className="flex min-h-screen items-center justify-center bg-pine p-8 text-base font-semibold text-ink-soft">
           Loading When2Meet availability...
         </div>
       }

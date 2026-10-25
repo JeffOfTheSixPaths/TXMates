@@ -112,12 +112,10 @@ export function ItinerarySchedule({
 
       {/* Voter selector bar */}
       {friends.length > 0 && currentVoter && (
-        <div className="mb-4 border border-seam bg-sheet p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
-                Voting on individual stops as:
-              </span>
+              <span className="text-sm font-semibold text-ink">Voting as</span>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {friends.map((friend) => {
                   const isActive = currentVoter.id === friend.id;
@@ -139,8 +137,8 @@ export function ItinerarySchedule({
                 })}
               </div>
             </div>
-            <p className="max-w-xs text-xs text-ink-soft">
-              Votes save to user accounts. Disliking (👎) an item tells TXMates to show this place less often in future plans.
+            <p className="max-w-xs text-sm text-ink-soft">
+              A dislike is saved and that place shows up less.
             </p>
           </div>
         </div>
@@ -173,7 +171,7 @@ export function ItinerarySchedule({
                 <div className="flex shrink-0 flex-col gap-1">
                   <button
                     type="button"
-                    className="grid h-11 w-11 cursor-grab place-items-center border border-seam text-ink touch-none active:cursor-grabbing disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 cursor-grab place-items-center text-ink touch-none active:cursor-grabbing disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Drag to reorder ${item.activity.name}`}
                     disabled={!canEdit}
                     onPointerDown={(event) => onPointerDown(event, index)}
@@ -194,7 +192,7 @@ export function ItinerarySchedule({
                   </button>
                   <button
                     type="button"
-                    className="grid h-11 w-11 place-items-center border border-seam text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 place-items-center text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Move ${item.activity.name} up`}
                     disabled={!canEdit || index === 0}
                     onClick={() => move(index, index - 1)}
@@ -203,7 +201,7 @@ export function ItinerarySchedule({
                   </button>
                   <button
                     type="button"
-                    className="grid h-11 w-11 place-items-center border border-seam text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
+                    className="grid h-11 w-11 place-items-center text-ink disabled:cursor-not-allowed disabled:text-ink-soft disabled:opacity-100"
                     aria-label={`Move ${item.activity.name} down`}
                     disabled={!canEdit || index === items.length - 1}
                     onClick={() => move(index, index + 1)}
@@ -285,19 +283,15 @@ export function ItinerarySchedule({
                       </button>
                     )}
 
-                    {/* Item-level Voting Section */}
-                    <div className="mt-4 border-t border-seam pt-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
-                          Vote on this stop
-                        </span>
-                        {hasDownvotes && (
-                          <span className="inline-flex items-center gap-1 border border-tomato/30 bg-tomato/10 px-2 py-0.5 text-xs font-semibold text-tomato">
-                            <ThumbsDown className="h-3 w-3" aria-hidden />
-                            Disliked by {downvoters.map((d) => d.name.split(" ")[0]).join(", ") || "member"} · Saved to account (shows less)
-                          </span>
-                        )}
-                      </div>
+                    {hasDownvotes && (
+                      <p className="mt-3 flex items-center gap-1 text-sm font-semibold text-tomato">
+                        <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
+                        Disliked by {downvoters.map((d) => d.name.split(" ")[0]).join(", ") || "a mate"}. Saved, so it shows up less.
+                      </p>
+                    )}
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-ink">Vote on this stop</summary>
+                      <div className="mt-2">
 
                       {/* Active voter voting controls */}
                       {currentVoter && (
@@ -373,15 +367,15 @@ export function ItinerarySchedule({
                               }
                               aria-pressed={activeVote === "down"}
                               aria-label={`Dislike ${item.activity.name} (show less in future)`}
-                              title="Dislike this place - saves to your account so future recommendations show it less"
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold ${
+                              title="Dislike this place. It is saved and shown less often."
+                              className={`inline-flex min-h-11 items-center gap-1 px-2.5 text-sm font-semibold ${
                                 activeVote === "down"
-                                  ? "border border-tomato bg-tomato text-white"
-                                  : "border border-seam bg-paper text-ink hover:bg-tomato/10 hover:text-tomato"
+                                  ? "bg-tomato text-white"
+                                  : "bg-paper text-ink hover:text-tomato"
                               }`}
                             >
                               <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
-                              Dislike (show less)
+                              Dislike
                             </button>
                           </div>
                         </div>
@@ -409,13 +403,14 @@ export function ItinerarySchedule({
                                 }`}
                               >
                                 <span>{friend.name.split(" ")[0]}:</span>
-                                {vote === "love" ? "❤️ Love" : vote === "up" ? "👍 In" : "👎 Dislike"}
+                                {vote === "love" ? "Love" : vote === "up" ? "In" : "Dislike"}
                               </button>
                             );
                           })}
                         </div>
                       )}
-                    </div>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>

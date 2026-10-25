@@ -225,7 +225,7 @@ export function GoogleCalendarImporter({
   const syncDetails = friend.calendarSyncDetails;
 
   return (
-    <div className="rounded-none border border-seam bg-pine p-4">
+    <div className="bg-pine p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="grid h-8 w-8 place-items-center border border-seam bg-sheet text-ink">
@@ -431,7 +431,7 @@ export function GoogleCalendarImporter({
                   className="mt-1 w-full border border-seam bg-sheet px-2.5 py-1.5 text-xs text-ink"
                 />
               </label>
-              <p className="text-[11px] text-ink-soft">
+              <p className="text-xs text-ink-soft">
                 Find this in Google Calendar &gt; Settings for my calendar &gt; Integrate calendar &gt; Secret address in iCal format.
               </p>
               <div className="flex gap-2 pt-1">
@@ -458,7 +458,7 @@ export function GoogleCalendarImporter({
                   className="mt-1 block w-full text-xs text-ink file:mr-2 file:border-0 file:bg-ink file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-paper"
                 />
               </label>
-              <p className="text-[11px] text-ink-soft">
+              <p className="text-xs text-ink-soft">
                 Exported from Google Calendar via Settings &gt; Import &amp; Export &gt; Export.
               </p>
             </div>

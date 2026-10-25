@@ -21,7 +21,8 @@
   --color-tomato: #c7382f;
   --color-leaf: #1f6b45;
   --color-seam: #c9d4c0;
-  --font-sans: var(--font-familjen), "Familjen Grotesk", sans-serif;
+  --font-sans: var(--font-source), "Source Sans 3", "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), "Iowan Old Style", Palatino, Georgia, serif;
 }
 
 body {
@@ -30,6 +31,7 @@ body {
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.5;
+  text-wrap: pretty;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
 }
@@ -47,7 +49,15 @@ body {
 h1,
 h2,
 h3 {
+  font-family: var(--font-fraunces), "Iowan Old Style", Palatino, Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
   text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 input,

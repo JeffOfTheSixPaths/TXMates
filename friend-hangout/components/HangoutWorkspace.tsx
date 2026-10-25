@@ -482,14 +482,14 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
         </p>
       )}
 
-      <section className="border-b border-seam">
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <section>
+        <div className="mx-auto max-w-6xl px-4 pb-2 pt-10 sm:px-6 sm:pt-12">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="max-w-3xl">
-              <h1 className="text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+              <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
                 {preferences.groupName}
               </h1>
-              <p className="mt-2 max-w-prose text-base text-ink-soft">
+              <p className="mt-3 max-w-prose text-base text-ink-soft">
                 {formatHangoutDate(preferences.date)} in {preferences.location}. ${preferences.maxBudgetPerPerson} a person, {preferences.selectedInterests.length} interests.
               </p>
             </div>
@@ -519,16 +519,14 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
                       onClick={() =>
                         setPreferences((prev) => ({ ...prev, date: cd.date }))
                       }
-                      className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-semibold transition-all ${
-                        isActive
-                          ? "border-ink bg-sheet text-ink shadow-sm ring-1 ring-ink"
-                          : "border-seam bg-pine text-ink-soft hover:bg-sheet hover:text-ink"
+                      className={`inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-semibold ${
+                        isActive ? "bg-sun text-ink" : "bg-sheet text-ink-soft hover:text-ink"
                       }`}
                     >
                       <Calendar className="h-3.5 w-3.5" aria-hidden />
                       <span>{cd.formattedDate}</span>
                       {cd.isBest && (
-                        <span className="inline-flex items-center gap-0.5 bg-sun px-1 py-0.5 text-[10px] font-bold text-ink">
+                        <span className="inline-flex items-center gap-0.5 bg-sun px-1 py-0.5 text-xs font-semibold text-ink">
                           <Star className="h-2.5 w-2.5 fill-current" />
                           Best
                         </span>
@@ -545,7 +543,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
 
           <OverlapRunner hours={runnerHours} summary={overlapSummary} />
 
-          <div className="mt-6 flex gap-6 border-b border-seam" role="tablist">
+          <div className="mt-8 flex gap-6 border-b border-seam" role="tablist">
             <button
               type="button"
               role="tab"
@@ -579,9 +577,9 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
       </section>
 
       <main className="flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
           {activeTab === "planner" ? (
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
               <div className="lg:col-span-5">
                 <OrganizerAccount
                   hangoutId={hangoutId}
@@ -598,7 +596,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
                     });
                   }}
                 />
-                <div className="mt-6">
+                <div className="mt-10">
                   <HangoutForm
                     preferences={preferences}
                     onChange={setPreferences}

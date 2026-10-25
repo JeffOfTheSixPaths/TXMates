@@ -105,14 +105,14 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-black/30 bg-cola text-paper">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-40 bg-cola text-paper">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center bg-sun text-sm font-bold text-ink">
                 Tx
               </span>
-              <span className="text-lg font-semibold tracking-tight">TXMates</span>
+              <span className="font-display text-lg font-semibold tracking-tight">TXMates</span>
             </Link>
 
             {/* Multi-group switcher dropdown */}
@@ -120,7 +120,7 @@ export function Header({
               <button
                 type="button"
                 onClick={() => setShowDropdown((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 rounded border border-paper/20 bg-cola-soft px-2.5 py-1 text-xs font-semibold text-paper hover:border-paper/40"
+                className="inline-flex min-h-11 items-center gap-1.5 bg-paper/10 px-2.5 text-sm font-semibold text-paper hover:bg-paper/15"
               >
                 <Layers className="h-3.5 w-3.5 text-sun" />
                 <span className="max-w-[140px] truncate sm:max-w-[200px]">
@@ -131,7 +131,7 @@ export function Header({
 
               {showDropdown && (
                 <div className="absolute left-0 top-full mt-1.5 w-64 rounded border border-seam bg-sheet text-ink shadow-xl z-50 p-2">
-                  <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+                  <div className="px-2 py-1 text-xs font-semibold text-ink-soft">
                     Your Groups
                   </div>
                   <div className="mt-1 max-h-56 overflow-y-auto space-y-0.5">
@@ -150,7 +150,7 @@ export function Header({
                           }`}
                         >
                           <span className="truncate">{g.groupName}</span>
-                          <span className="text-[10px] text-ink-soft">
+                          <span className="text-xs text-ink-soft">
                             {g.friendCount} mates
                           </span>
                         </Link>
@@ -200,7 +200,7 @@ export function Header({
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex min-h-11 items-center gap-1.5 border border-paper/40 px-3 text-sm font-semibold text-paper"
+              className="inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-semibold text-paper hover:bg-paper/10"
             >
               {copied ? (
                 <>
@@ -234,7 +234,7 @@ export function Header({
               Create New Hangout Group
             </h3>
             <p className="mt-1 text-sm text-ink-soft">
-              Every group gets a separate When2Meet invite link and isolated itinerary recommendations.
+              A separate invite link and itinerary.
             </p>
 
             <form onSubmit={handleCreateGroup} className="mt-4 space-y-4">

@@ -125,8 +125,8 @@ export function DragCalendar({
       : [];
 
   return (
-    <div className="select-none rounded border border-seam bg-sheet p-4 shadow-sm">
-      <div className="flex items-center justify-between border-b border-seam pb-3">
+    <div className="select-none bg-pine p-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-5 w-5 text-ink" aria-hidden />
           <h3 className="text-base font-bold text-ink">
@@ -156,9 +156,7 @@ export function DragCalendar({
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-ink-soft">
-        Click a date to select it, or drag across days to select a date range.
-      </p>
+      <p className="mt-2 text-sm text-ink-soft">Click or drag across days.</p>
 
       {/* Weekday headers */}
       <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-ink-soft">

@@ -145,13 +145,11 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
     'w-full border border-seam bg-pine px-3 py-2.5 text-base text-ink placeholder:text-ink-soft';
 
   return (
-    <section className="border border-seam bg-sheet p-5 sm:p-7" aria-labelledby="organizer-account-heading">
-      <h2 id="organizer-account-heading" className="text-2xl font-semibold tracking-tight text-ink">
+    <section className="bg-sheet px-5 py-6 sm:px-7 sm:py-8" aria-labelledby="organizer-account-heading">
+      <h2 id="organizer-account-heading" className="text-3xl font-semibold text-ink">
         You
       </h2>
-      <p className="mt-1 text-base text-ink-soft">
-        Name and email stay on this device. Copy a link for mates, or drop in an invite you were sent.
-      </p>
+      <p className="mt-2 max-w-prose text-base text-ink-soft">Saved on this device.</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-base font-semibold text-ink">
@@ -180,12 +178,12 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
         </label>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-8">
         <label htmlFor="organizer-invite" className="block text-base font-semibold text-ink">
           Invite mates
         </label>
         <p id={inviteHintId} className="mt-1 text-sm text-ink-soft">
-          Anyone with this link can mark hours on the same hangout.
+          Anyone with this link can mark hours.
         </p>
         <div className="mt-2 flex min-h-11 items-stretch border border-seam bg-pine">
           <span className="grid w-11 shrink-0 place-items-center text-ink-soft" aria-hidden>
@@ -214,11 +212,10 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
         </div>
       </div>
 
-      <form className="mt-5" onSubmit={handleJoin}>
-        <label htmlFor="organizer-join" className="block text-base font-semibold text-ink">
-          Have an invite?
-        </label>
-        <p className="mt-1 text-sm text-ink-soft">Paste a TXMates link from someone else.</p>
+      <details className="mt-6">
+        <summary className="cursor-pointer text-base font-semibold text-ink">Have an invite?</summary>
+        <form className="mt-3" onSubmit={handleJoin}>
+        <p className="text-sm text-ink-soft">Paste a TXMates link from someone else.</p>
         <div className="mt-2 flex min-h-11 items-stretch border border-seam bg-pine">
           <input
             id="organizer-join"
@@ -250,26 +247,24 @@ export function OrganizerAccount({ hangoutId, onNameChange }: OrganizerAccountPr
             {joinNotice}
           </p>
         )}
-      </form>
+        </form>
+      </details>
 
-      <div className="mt-6 border-t border-seam pt-5">
+      <div className="mt-8 bg-pine px-4 py-4">
         <label className="flex cursor-pointer items-start gap-3 text-base text-ink">
           <input
             type="checkbox"
             checked={importStatements}
             onChange={(event) => updateAccount({ importStatements: event.target.checked })}
             aria-describedby={statementHintId}
-            className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-leaf"
+            className="mt-1 h-5 w-5 shrink-0 cursor-pointer accent-leaf"
           />
           <span>
-            <span className="block text-xs font-semibold uppercase tracking-wide text-ink-soft">
-              Capital One · Nessie budgets
-            </span>
-            <span className="mt-0.5 block font-semibold">
-              Import Capital One bank statements to better understand your budget
+            <span className="block font-semibold">
+              Import Capital One bank statements
             </span>
             <span id={statementHintId} className="mt-1 block text-sm text-ink-soft">
-              Use your recent spending to shape a per-person budget that fits.
+              Recent spending shapes a per-person cap that fits. Balances stay on this device.
             </span>
           </span>
         </label>
