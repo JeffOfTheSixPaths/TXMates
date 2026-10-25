@@ -207,6 +207,25 @@ describe('Muse parsers', () => {
     );
     assert.equal(plan?.picks.length, 1);
     assert.equal(plan?.picks[0]?.id, 'ok');
+
+    const indexedPlan = parseMusePlan(
+      JSON.stringify({
+        picks: [
+          { id: '1', whyThisFits: 'First stop.' },
+          { id: 'Deep Ellum BBQ', whyThisFits: 'Second stop.' },
+        ],
+        aiRationale: 'Dallas schedule.',
+      }),
+      new Set(['dal-1', 'dal-2']),
+      [
+        { id: 'dal-1', name: 'Klyde Warren Park' },
+        { id: 'dal-2', name: 'Deep Ellum BBQ' },
+      ]
+    );
+    assert.equal(indexedPlan?.picks.length, 2);
+    assert.equal(indexedPlan?.picks[0]?.id, 'dal-1');
+    assert.equal(indexedPlan?.picks[1]?.id, 'dal-2');
+
     assert.equal(parseBudgetCopy('{"explanation":"Room for tacos.","tips":["Skip the second round"]}')?.explanation, 'Room for tacos.');
     assert.match(heuristicWhy({ category: 'food', estimatedCostPerPerson: 20 }, ['food'], 50), /within the \$50 cap/);
   });

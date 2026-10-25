@@ -420,16 +420,62 @@ export function HangoutForm({
               </span>
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
-              {AUSTIN_NEIGHBORHOODS.slice(0, 4).map((neigh) => (
-                <button
-                  type="button"
-                  key={neigh}
-                  onClick={() => onChange({ ...preferences, location: `Austin, TX (${neigh})` })}
-                  className="bg-pine px-2 py-1 text-sm font-semibold text-ink"
-                >
-                  {neigh.split(" ")[0]}
-                </button>
-              ))}
+              {(() => {
+                const loc = (preferences.location || '').toLowerCase();
+                let chips: Array<{ label: string; value: string }> = [];
+                if (loc.includes('dallas')) {
+                  chips = [
+                    { label: 'Deep Ellum', value: 'Dallas, TX (Deep Ellum)' },
+                    { label: 'Arts District', value: 'Dallas, TX (Arts District)' },
+                    { label: 'Uptown', value: 'Dallas, TX (Uptown)' },
+                    { label: 'Bishop Arts', value: 'Dallas, TX (Bishop Arts)' },
+                  ];
+                } else if (loc.includes('san antonio')) {
+                  chips = [
+                    { label: 'Pearl', value: 'San Antonio, TX (Pearl District)' },
+                    { label: 'River Walk', value: 'San Antonio, TX (River Walk)' },
+                    { label: 'Southtown', value: 'San Antonio, TX (Southtown)' },
+                    { label: 'Downtown', value: 'San Antonio, TX (Downtown)' },
+                  ];
+                } else if (loc.includes('seattle')) {
+                  chips = [
+                    { label: 'Capitol Hill', value: 'Seattle, WA (Capitol Hill)' },
+                    { label: 'Ballard', value: 'Seattle, WA (Ballard)' },
+                    { label: 'Fremont', value: 'Seattle, WA (Fremont)' },
+                    { label: 'Pike Place', value: 'Seattle, WA (Pike Place)' },
+                  ];
+                } else if (loc.includes('chicago')) {
+                  chips = [
+                    { label: 'West Loop', value: 'Chicago, IL (West Loop)' },
+                    { label: 'Wicker Park', value: 'Chicago, IL (Wicker Park)' },
+                    { label: 'River North', value: 'Chicago, IL (River North)' },
+                    { label: 'Lincoln Park', value: 'Chicago, IL (Lincoln Park)' },
+                  ];
+                } else if (loc.includes('austin') || !loc) {
+                  chips = AUSTIN_NEIGHBORHOODS.slice(0, 4).map((neigh) => ({
+                    label: neigh.split(' ')[0],
+                    value: `Austin, TX (${neigh})`,
+                  }));
+                } else {
+                  chips = [
+                    { label: 'Austin', value: 'Austin, TX' },
+                    { label: 'Dallas', value: 'Dallas, TX' },
+                    { label: 'San Antonio', value: 'San Antonio, TX' },
+                    { label: 'Seattle', value: 'Seattle, WA' },
+                    { label: 'Chicago', value: 'Chicago, IL' },
+                  ];
+                }
+                return chips.map((chip) => (
+                  <button
+                    type="button"
+                    key={chip.label}
+                    onClick={() => onChange({ ...preferences, location: chip.value })}
+                    className="bg-pine px-2 py-1 text-sm font-semibold text-ink"
+                  >
+                    {chip.label}
+                  </button>
+                ));
+              })()}
             </div>
           </div>
         </div>

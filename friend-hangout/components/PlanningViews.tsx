@@ -97,11 +97,21 @@ export function PlanningViews({
   const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [seenView, setSeenView] = useState(activeView);
   const [seenRevision, setSeenRevision] = useState(scheduleRevision);
+  const [seenLocation, setSeenLocation] = useState(preferences.location);
 
-  if (seenView !== activeView || seenRevision !== scheduleRevision) {
+  if (
+    seenView !== activeView ||
+    seenRevision !== scheduleRevision ||
+    seenLocation !== preferences.location
+  ) {
     setSeenView(activeView);
     setSeenRevision(scheduleRevision);
-    if (!itineraryLocked) setOverride(null);
+    setSeenLocation(preferences.location);
+    setOverride(null);
+    if (seenLocation !== preferences.location) {
+      setItineraryLocked(false);
+      setScheduleNotice(null);
+    }
   }
 
   const items = useMemo(() => {
@@ -128,6 +138,22 @@ export function PlanningViews({
         if (cancelled || !data?.itineraryLock?.locked) return;
         const snapshot = parseItinerarySnapshot(data.itineraryLock.snapshot);
         if (!snapshot) return;
+
+        // Verify that the snapshot belongs to the current hangout location
+        const cleanCity = (preferences.location || "Austin")
+          .replace(/\(.*?\)/g, "")
+          .split(",")[0]
+          .trim()
+          .toLowerCase();
+        const matchesCity = snapshot.some((item) => {
+          const loc = (item.activity.location || "").toLowerCase();
+          const neigh = (item.activity.neighborhood || "").toLowerCase();
+          return loc.includes(cleanCity) || neigh.includes(cleanCity);
+        });
+        if (!matchesCity && cleanCity !== "austin") {
+          return;
+        }
+
         setOverride(snapshot);
         setItineraryLocked(true);
         setCanDownload(true);
@@ -139,7 +165,7 @@ export function PlanningViews({
     return () => {
       cancelled = true;
     };
-  }, [preferences.id]);
+  }, [preferences.id, preferences.location]);
 
   // Keep the latest callback in a ref so a new inline onVoteRecorded from the
   // parent does not re-run the votes fetch. Depending on the callback (or on

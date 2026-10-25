@@ -72,19 +72,40 @@ export async function POST(req: NextRequest) {
     }
 
     const pool: Activity[] = [];
+    const cityActivities = getActivitiesForLocation(location);
     if (discoveredForCity.length > 0) {
       pool.push(...discoveredForCity);
       if (Array.isArray(activities)) {
         for (const act of activities) {
-          if (!pool.some((item) => item.id === act.id || item.name.toLowerCase() === act.name.toLowerCase())) {
+          const actLoc = (act.location || '').toLowerCase();
+          const actNeigh = (act.neighborhood || '').toLowerCase();
+          const cleanC = cityName.toLowerCase();
+          const matchesCity =
+            actLoc.includes(cleanC) ||
+            actNeigh.includes(cleanC) ||
+            cityActivities.some((c) => c.id === act.id);
+          if (
+            matchesCity &&
+            !pool.some((item) => item.id === act.id || item.name.toLowerCase() === act.name.toLowerCase())
+          ) {
             pool.push(act);
           }
         }
       }
     } else if (Array.isArray(activities) && activities.length > 0) {
-      pool.push(...activities);
+      const cleanC = cityName.toLowerCase();
+      const cityMatches = activities.filter((act) => {
+        const actLoc = (act.location || '').toLowerCase();
+        const actNeigh = (act.neighborhood || '').toLowerCase();
+        return actLoc.includes(cleanC) || actNeigh.includes(cleanC) || cityActivities.some((c) => c.id === act.id);
+      });
+      if (cityMatches.length > 0) {
+        pool.push(...cityMatches);
+      } else {
+        pool.push(...cityActivities);
+      }
     } else {
-      pool.push(...getActivitiesForLocation(location));
+      pool.push(...cityActivities);
     }
 
     const userIds = (preferences.friends || []).map((friend) => friend.id).filter(Boolean);
@@ -279,7 +300,7 @@ Select up to 3 specific venues or events from the Candidate Activities and gener
 
     const parsed =
       result.content && !result.truncated
-        ? parseMusePlan(result.content, new Set(museList.map((activity) => activity.id)))
+        ? parseMusePlan(result.content, new Set(museList.map((activity) => activity.id)), museList)
         : null;
     const musePicks = (parsed?.picks || [])
       .map((pick) => {

@@ -7,7 +7,7 @@ import type { Activity, ActivityCategory, HangoutPreferences, ItineraryItem } fr
 import { civilDate } from "@/lib/activityClassify";
 import { formatActivityPrice, formatAge, formatEventSpan } from "@/lib/activityFormat";
 import { filterSwapCandidates } from "@/lib/itineraryEdit";
-import { MOCK_ACTIVITIES, ACTIVITY_CATEGORIES } from "@/lib/mockData";
+import { ACTIVITY_CATEGORIES, getActivitiesForLocation } from "@/lib/mockData";
 import { CATEGORY_ICONS } from "./categoryIcons";
 import { EmptyState } from "./EmptyState";
 
@@ -67,7 +67,7 @@ export function SwapPicker({
         if (cancelled) return;
         const activities = Array.isArray(data.activities) ? data.activities : [];
         if (activities.length === 0) {
-          setPool(MOCK_ACTIVITIES);
+          setPool(getActivitiesForLocation(preferences.location));
           setSource("fallback");
           setNotice("Curated catalog. Nothing saved came back for this city.");
           return;
@@ -78,9 +78,9 @@ export function SwapPicker({
       })
       .catch(() => {
         if (cancelled) return;
-        setPool(MOCK_ACTIVITIES);
+        setPool(getActivitiesForLocation(preferences.location));
         setSource("fallback");
-        setNotice("Curated catalog. Saved spots did not load, so this list is the Austin demo set.");
+        setNotice("Curated catalog. Saved spots did not load, so this list is the fallback city set.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

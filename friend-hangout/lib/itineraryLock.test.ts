@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { describe, it } from 'node:test';
 import type { HangoutPreferences } from '@/types';
 import { initHangoutDb, saveHangoutToDb } from './db.ts';
-import { buildItinerary } from './planner.ts';
+import { buildItinerary, generatePlan } from './planner.ts';
 import {
   parseItinerarySnapshot,
   readItineraryLock,
@@ -89,5 +89,37 @@ describe('itinerary lock record', () => {
     assert.equal(parseItinerarySnapshot('[]'), null);
     assert.equal(parseItinerarySnapshot([{ timeSlot: '2:00 PM - 3:00 PM' }]), null);
     assert.equal(parseItinerarySnapshot('not json'), null);
+  });
+
+  it('generates plans and itineraries dynamically for different cities', () => {
+    const dallasPrefs = {
+      ...preferences(),
+      location: 'Dallas, TX',
+    };
+    const dallasPlan = generatePlan(dallasPrefs, 'overall');
+    assert.equal(dallasPlan.itinerary.length, 3);
+    assert.ok(
+      dallasPlan.itinerary.some(
+        (item) =>
+          item.activity.location.includes('Dallas') ||
+          item.activity.neighborhood.includes('Dallas') ||
+          item.activity.id.startsWith('dal-')
+      )
+    );
+
+    const seattlePrefs = {
+      ...preferences(),
+      location: 'Seattle, WA',
+    };
+    const seattlePlan = generatePlan(seattlePrefs, 'overall');
+    assert.equal(seattlePlan.itinerary.length, 3);
+    assert.ok(
+      seattlePlan.itinerary.some(
+        (item) =>
+          item.activity.location.includes('Seattle') ||
+          item.activity.neighborhood.includes('Seattle') ||
+          item.activity.id.startsWith('sea-')
+      )
+    );
   });
 });

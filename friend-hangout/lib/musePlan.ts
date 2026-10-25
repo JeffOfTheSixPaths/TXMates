@@ -232,18 +232,39 @@ export function budgetCopyCacheKey(
     .digest('hex');
 }
 
-export function parseMusePlan(content: string, allowedIds: Set<string>): MusePlanCopy | null {
+export function parseMusePlan(
+  content: string,
+  allowedIds: Set<string>,
+  candidateList?: Array<{ id: string; name: string }>
+): MusePlanCopy | null {
   const record = asRecord(parseJson(content));
   if (!record) return null;
   const picks = Array.isArray(record.picks) ? record.picks : [];
   const parsedPicks: MusePick[] = [];
   for (const pick of picks) {
     const item = asRecord(pick);
-    if (!item || typeof item.id !== 'string' || !allowedIds.has(item.id)) continue;
-    if (parsedPicks.some((existing) => existing.id === item.id)) continue;
+    if (!item) continue;
+    let resolvedId: string | null = null;
+    const rawId = typeof item.id === 'string' || typeof item.id === 'number' ? String(item.id).trim() : '';
+    if (allowedIds.has(rawId)) {
+      resolvedId = rawId;
+    } else if (candidateList && candidateList.length > 0) {
+      const num = parseInt(rawId, 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= candidateList.length) {
+        resolvedId = candidateList[num - 1].id;
+      } else if (rawId) {
+        const found = candidateList.find(
+          (c) =>
+            c.name.toLowerCase().includes(rawId.toLowerCase()) || rawId.toLowerCase().includes(c.name.toLowerCase())
+        );
+        if (found) resolvedId = found.id;
+      }
+    }
+    if (!resolvedId || !allowedIds.has(resolvedId)) continue;
+    if (parsedPicks.some((existing) => existing.id === resolvedId)) continue;
     const why = shortText(item.whyThisFits, 240);
     if (!why) continue;
-    parsedPicks.push({ id: item.id, whyThisFits: why });
+    parsedPicks.push({ id: resolvedId, whyThisFits: why });
     if (parsedPicks.length >= 3) break;
   }
   return {

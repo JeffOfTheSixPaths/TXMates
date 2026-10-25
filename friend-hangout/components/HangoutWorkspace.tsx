@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Compass, Star } from 'lucide-react';
 import {
   Activity,
@@ -85,6 +85,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
         activities?: Activity[];
         limited?: boolean;
         filled?: boolean;
+        location?: string;
       } | null
     >
   >({
@@ -94,6 +95,71 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
   });
 
   const friendCount = preferences.friends.length;
+
+  // Fetch live Meta Muse Spark AI synthesis
+  const fetchLiveMusePlan = useCallback(
+    async (
+      view: PlanningViewType,
+      isCancelled: () => boolean = () => false,
+      overrideDownvotes?: { downvotedIds?: Set<string>; downvotedNames?: Set<string> },
+      customPreferences?: HangoutPreferences
+    ) => {
+      try {
+        const activePrefs = customPreferences || preferences;
+        const activeDownvotedIds = overrideDownvotes?.downvotedIds || downvotedIds;
+        const activeDownvotedNames = overrideDownvotes?.downvotedNames || downvotedNames;
+        const basePlan = generatePlan(activePrefs, view, nessie?.estimate, {
+          downvotedIds: activeDownvotedIds,
+          downvotedNames: activeDownvotedNames,
+        });
+        const res = await fetch('/api/muse/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            preferences: activePrefs,
+            viewType: view,
+            activities: basePlan.activities,
+            nessie: nessie?.estimate || null,
+            downvotedActivityIds: Array.from(activeDownvotedIds),
+            downvotedActivityNames: Array.from(activeDownvotedNames),
+          }),
+        });
+
+        if (res.ok && !isCancelled()) {
+          const data = await res.json();
+          if (data.isLive || data.limited || data.filled) {
+            const budgetTips = Array.isArray(data.budgetTips)
+              ? data.budgetTips.filter((tip: unknown): tip is string => typeof tip === 'string' && tip.trim().length > 0)
+              : undefined;
+            setLiveAiData((prev) => ({
+              ...prev,
+              [view]: {
+                aiRationale: data.aiRationale || '',
+                aiIcebreaker: data.aiIcebreaker,
+                aiCoordinationTip: data.aiCoordinationTip,
+                budgetExplanation: typeof data.budgetExplanation === 'string' ? data.budgetExplanation : undefined,
+                budgetTips,
+                isLive: Boolean(data.isLive),
+                model: data.model || 'muse-spark-1.3',
+                cached: Boolean(data.cached),
+                cachedAt: typeof data.cachedAt === 'string' ? data.cachedAt : undefined,
+                activities: Array.isArray(data.activities) ? data.activities : undefined,
+                limited: Boolean(data.limited),
+                filled: Boolean(data.filled),
+                location: data.location || activePrefs.location,
+              },
+            }));
+            setScheduleRevision((r) => r + 1);
+          }
+        }
+      } catch {
+        // Deterministic fallback remains active
+      } finally {
+        if (!isCancelled()) setMusePending(false);
+      }
+    },
+    [preferences, downvotedIds, downvotedNames, nessie]
+  );
 
   // Load hangout details from database on mount or when hangoutId changes
   useEffect(() => {
@@ -108,6 +174,9 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
             ...data.hangout,
             id: hangoutId,
           }));
+          if (data.hangout.location && data.hangout.location !== DEFAULT_PREFERENCES.location) {
+            void fetchLiveMusePlan('overall', () => cancelled, undefined, data.hangout);
+          }
         }
       })
       .catch(() => {});
@@ -115,7 +184,7 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
     return () => {
       cancelled = true;
     };
-  }, [hangoutId]);
+  }, [hangoutId, fetchLiveMusePlan]);
 
   useEffect(() => {
     let cancelled = false;
@@ -274,64 +343,6 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
     return () => clearInterval(pollInterval);
   }, [hangoutId, preferences.friends]);
 
-  // Fetch live Meta Muse Spark AI synthesis
-  const fetchLiveMusePlan = async (
-    view: PlanningViewType,
-    isCancelled = () => false,
-    overrideDownvotes?: { downvotedIds?: Set<string>; downvotedNames?: Set<string> }
-  ) => {
-    try {
-      const activeDownvotedIds = overrideDownvotes?.downvotedIds || downvotedIds;
-      const activeDownvotedNames = overrideDownvotes?.downvotedNames || downvotedNames;
-      const basePlan = generatePlan(preferences, view, nessie?.estimate, {
-        downvotedIds: activeDownvotedIds,
-        downvotedNames: activeDownvotedNames,
-      });
-      const res = await fetch('/api/muse/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          preferences,
-          viewType: view,
-          activities: basePlan.activities,
-          nessie: nessie?.estimate || null,
-          downvotedActivityIds: Array.from(activeDownvotedIds),
-          downvotedActivityNames: Array.from(activeDownvotedNames),
-        }),
-      });
-
-      if (res.ok && !isCancelled()) {
-        const data = await res.json();
-        if (data.isLive || data.limited || data.filled) {
-          const budgetTips = Array.isArray(data.budgetTips)
-            ? data.budgetTips.filter((tip: unknown): tip is string => typeof tip === 'string' && tip.trim().length > 0)
-            : undefined;
-          setLiveAiData((prev) => ({
-            ...prev,
-            [view]: {
-              aiRationale: data.aiRationale || '',
-              aiIcebreaker: data.aiIcebreaker,
-              aiCoordinationTip: data.aiCoordinationTip,
-              budgetExplanation: typeof data.budgetExplanation === 'string' ? data.budgetExplanation : undefined,
-              budgetTips,
-              isLive: Boolean(data.isLive),
-              model: data.model || 'muse-spark-1.3',
-              cached: Boolean(data.cached),
-              cachedAt: typeof data.cachedAt === 'string' ? data.cachedAt : undefined,
-              activities: Array.isArray(data.activities) ? data.activities : undefined,
-              limited: Boolean(data.limited),
-              filled: Boolean(data.filled),
-            },
-          }));
-        }
-      }
-    } catch {
-      // Deterministic fallback remains active
-    } finally {
-      if (!isCancelled()) setMusePending(false);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -344,6 +355,31 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Invalidate stale AI data and bump schedule revision when location changes
+  const prevLocationRef = useRef(preferences.location);
+  useEffect(() => {
+    if (prevLocationRef.current !== preferences.location) {
+      prevLocationRef.current = preferences.location;
+      setLiveAiData({ overall: null, cheapest: null, interests: null });
+      setScheduleRevision((r) => r + 1);
+
+      // Debounce live Muse plan generation for new city
+      let cancelled = false;
+      const cleanCity = preferences.location.replace(/\(.*?\)/g, '').split(',')[0].trim();
+      let timer: NodeJS.Timeout | null = null;
+      if (cleanCity) {
+        timer = setTimeout(() => {
+          setMusePending(true);
+          void fetchLiveMusePlan(activeView, () => cancelled);
+        }, 800);
+      }
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+    }
+  }, [preferences.location, activeView, fetchLiveMusePlan]);
+
   // Compute current plan deterministically, augmented with live Meta Muse Spark AI synthesis
   const currentPlan = useMemo(() => {
     const base = generatePlan(preferences, activeView, nessie?.estimate, {
@@ -351,7 +387,17 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
       downvotedNames,
     });
     const live = liveAiData[activeView];
-    if (live && (live.isLive || live.limited || live.filled)) {
+    const cleanCity = (preferences.location || 'Austin')
+      .replace(/\(.*?\)/g, '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    const liveCity = live?.location
+      ? live.location.replace(/\(.*?\)/g, '').split(',')[0].trim().toLowerCase()
+      : null;
+    const cityMatches = !liveCity || liveCity === cleanCity;
+
+    if (live && cityMatches && (live.isLive || live.limited || live.filled)) {
       const liveActivities = live.activities?.length ? live.activities : base.activities;
       const isDownvoted = (act: Activity) =>
         downvotedIds.has(act.id) ||
@@ -389,8 +435,10 @@ export function HangoutWorkspace({ hangoutId = 'txmates-demo' }: HangoutWorkspac
     setIsGenerating(true);
     setMusePending(true);
     setLiveAiData({ overall: null, cheapest: null, interests: null });
+    setScheduleRevision((r) => r + 1);
     fetchLiveMusePlan(activeView).finally(() => {
       setIsGenerating(false);
+      setScheduleRevision((r) => r + 1);
       const el = document.getElementById('planning-views-section');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
