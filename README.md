@@ -81,7 +81,9 @@ flowchart LR
 
 **Nessie** is read from `/api/nessie/budget`. Spendable cash is checking minus credit-card balances. `savingsBalance` is reported and kept out of that cash. `plannedMonthlySavings` is subtracted before the hangout suggestion. `/api/nessie/check` is a separate connectivity probe and defaults to `http://api.nessieisreal.com`. The budget client defaults to `https://api.nessieisreal.com`.
 
-**OpenSERP** answers activity and event search. `/api/discovery` calls `lib/discoverActivities.ts`, which calls `/mega/search` with `engines` from `OPENSERP_ENGINES`. The example file sets `duckduckgo,bing`. If that variable is unset, the code sends `bing,duckduckgo`. Google stays off that pair because a cold three-engine search often runs past the timeout. Saved rows for the city load from SQLite first. A search older than `ACTIVITY_CACHE_TTL_HOURS` (default 8, allowed 1–24) refreshes in the background. The `openserp/` directory in this repo is empty. Run the server yourself.
+**OpenSERP** answers activity and event search unless `SEARCH_PROVIDER=serpapi`. `/api/discovery` calls `lib/discoverActivities.ts`, which calls `/mega/search` with `engines` from `OPENSERP_ENGINES`. The example file sets `duckduckgo,bing`. If that variable is unset, the code sends `bing,duckduckgo`. Google stays off that pair because a cold three-engine search often runs past the timeout. Saved rows for the city load from SQLite first. A search older than `ACTIVITY_CACHE_TTL_HOURS` (default 8, allowed 1–24) refreshes in the background. The `openserp/` directory in this repo is empty. Run the server yourself.
+
+Set `SEARCH_PROVIDER=serpapi` and `SERPAPI_API_KEY` to use [SerpApi](https://serpapi.com) instead. The app calls `https://serpapi.com/search.json` with `engine=google` and `engine=google_local`, then keeps the same junk filter, wrong-city filter, cache, and demo fallback. The key stays on the server and is not logged. If `SEARCH_PROVIDER=serpapi` and the key is missing, search logs a warning and uses OpenSERP. Any other value, including leaving it unset, also uses OpenSERP.
 
 The city field on Discover is sent as the location. If the search text itself names `dallas`, `boston`, `san antonio`, `houston`, `chicago`, `new york`, `nyc`, `austin`, `seattle`, `denver`, `miami`, `atlanta`, `los angeles`, `san francisco`, or `orlando`, that name replaces the location for the request. Austin, San Antonio, Dallas, and Boston fall back to curated lists. Any other city falls back to generated venue templates from `generateDynamicCityActivities`.
 
@@ -97,10 +99,10 @@ The city field on Discover is sent as the location. If the search text itself na
 ### Prerequisites
 
 - Node.js 20.9 or newer (Next.js 16), and npm
-- Optional: a Capital One Nessie API key, a Meta Muse API key, and a Ticketmaster Discovery API key
+- Optional: a Capital One Nessie API key, a Meta Muse API key, a Ticketmaster Discovery API key, and a SerpApi key
 - Optional: an OpenSERP binary if you want live search. It is not vendored here
 
-The app still plans a day with no keys. Nessie falls back to a $50 estimate, Muse copy stays on the built-in sentences, and Discover serves saved rows plus the city catalog when OpenSERP is down.
+The app still plans a day with no keys. Nessie falls back to a $50 estimate, Muse copy stays on the built-in sentences, and Discover serves saved rows plus the city catalog when live search is down.
 
 ### Install
 
@@ -123,6 +125,8 @@ NESSIE_ACCOUNT_ID=
 OPENSERP_URL=http://127.0.0.1:7000
 OPENSERP_TIMEOUT_MS=15000
 OPENSERP_ENGINES=duckduckgo,bing
+SEARCH_PROVIDER=openserp
+SERPAPI_API_KEY=
 
 MUSE_API_KEY=
 MUSE_BASE_URL=https://api.meta.ai/v1
@@ -141,9 +145,9 @@ ACTIVITY_LOCATION=Austin, TX
 TICKETMASTER_API_KEY=
 ```
 
-Leave the keys empty until you have them. Do not prefix `NESSIE_API_KEY`, `MUSE_API_KEY`, or `TICKETMASTER_API_KEY` with `NEXT_PUBLIC_`. `NESSIE_CUSTOMER_ID` and `NESSIE_ACCOUNT_ID` are optional pins. The commented defaults in `.env.example` are public URLs and timeouts, not credentials.
+Leave the keys empty until you have them. Do not prefix `NESSIE_API_KEY`, `MUSE_API_KEY`, `TICKETMASTER_API_KEY`, or `SERPAPI_API_KEY` with `NEXT_PUBLIC_`. `NESSIE_CUSTOMER_ID` and `NESSIE_ACCOUNT_ID` are optional pins. The commented defaults in `.env.example` are public URLs and timeouts, not credentials.
 
-`/api/discovery` reads `OPENSERP_URL`, `OPENSERP_TIMEOUT_MS`, and `OPENSERP_ENGINES`. The budget route reads the `NESSIE_*` variables. Budget wording and listing enrichment read the `MUSE_*` variables through `lib/museClient.ts`. `/api/muse/plan` reads `MUSE_API_KEY`, `MUSE_BASE_URL`, and `MUSE_MODEL`, and it uses the plan cache TTL. `TICKETMASTER_API_KEY` is read by `npm run events:collect` and by the end of `npm run refresh:activities`.
+`/api/discovery` reads `SEARCH_PROVIDER`, `SERPAPI_API_KEY`, `OPENSERP_URL`, `OPENSERP_TIMEOUT_MS`, and `OPENSERP_ENGINES`. The budget route reads the `NESSIE_*` variables. Budget wording and listing enrichment read the `MUSE_*` variables through `lib/museClient.ts`. `/api/muse/plan` reads `MUSE_API_KEY`, `MUSE_BASE_URL`, and `MUSE_MODEL`, and it uses the plan cache TTL. `TICKETMASTER_API_KEY` is read by `npm run events:collect` and by the end of `npm run refresh:activities`.
 
 `npm run nessie:seed` creates a demo customer, a checking account, purchases, and monthly and annual bills on the key in `.env.local`. It prints the new ids and does not print the key.
 
@@ -207,7 +211,7 @@ Add `--force` to `refresh:activities` to refresh searches that are still inside 
     │   ├── page.tsx                  # organizer planner
     │   ├── avail/[id]/page.tsx
     │   └── api/
-    │       ├── discovery/            # OpenSERP plus the city and event catalogs
+    │       ├── discovery/            # OpenSERP or SerpApi, plus the city and event catalogs
     │       ├── muse/plan/            # Muse picks and copy
     │       ├── nessie/               # budget and a connectivity check
     │       └── hangouts/             # SQLite hangouts and availability
@@ -247,6 +251,7 @@ TXMates is a hackathon project in [JeffOfTheSixPaths/TXMates](https://github.com
 - [Meta Muse Spark](https://api.meta.ai/v1) for plan picks, plan copy, budget wording, and listing enrichment
 - [Capital One Nessie](https://api.nessieisreal.com/documentation) for the per-person budget read
 - [OpenSERP](https://github.com/karust/openserp) for self-hosted search, with Bing and DuckDuckGo
+- [SerpApi](https://serpapi.com) as the optional second search provider
 - [Ticketmaster Discovery API](https://developer.ticketmaster.com/) for optional Austin listings
 - Next.js, React, Tailwind CSS, Lucide, and Familjen Grotesk
 

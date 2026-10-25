@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { museTimeoutMs, openSerpEngineOrder, openSerpEngines, openSerpTimeoutMs } from './serviceTimeouts.ts';
+import {
+  museTimeoutMs,
+  openSerpBaseUrl,
+  openSerpEngineOrder,
+  openSerpEngines,
+  openSerpTimeoutMs,
+} from './serviceTimeouts.ts';
 
 describe('service timeouts', () => {
   it('defaults OpenSERP to 15s and DuckDuckGo before Bing', () => {
+    assert.equal(openSerpBaseUrl(undefined), 'http://127.0.0.1:7000');
+    assert.equal(openSerpBaseUrl('http://localhost:7000/'), 'http://localhost:7000');
     assert.equal(openSerpTimeoutMs(undefined), 15_000);
     assert.equal(openSerpTimeoutMs('8000'), 8000);
     assert.equal(openSerpTimeoutMs('90000'), 30_000);

@@ -21,6 +21,10 @@ export function openSerpTimeoutMs(raw = process.env.OPENSERP_TIMEOUT_MS): number
   return resolveTimeoutMs(raw, DEFAULT_OPENSERP_TIMEOUT_MS, 1000, MAX_OPENSERP_TIMEOUT_MS);
 }
 
+export function openSerpBaseUrl(raw = process.env.OPENSERP_URL): string {
+  return (raw || 'http://127.0.0.1:7000').replace(/\/$/, '');
+}
+
 export function museTimeoutMs(raw = process.env.MUSE_TIMEOUT_MS): number {
   return resolveTimeoutMs(raw, DEFAULT_MUSE_TIMEOUT_MS, 1000, MAX_MUSE_TIMEOUT_MS);
 }

@@ -1,0 +1,129 @@
+{
+  "google": {
+    "search_metadata": {
+      "status": "Success",
+      "engine": "google"
+    },
+    "ads": [
+      {
+        "title": "Sponsored Dallas Bakery",
+        "link": "https://ads.example/dallas-bakery",
+        "snippet": "A bakery ad in Dallas that must not be mapped"
+      }
+    ],
+    "organic_results": [
+      {
+        "position": 1,
+        "title": "Empire Baking Company",
+        "link": "https://empirebaking.com/dallas",
+        "displayed_link": "https://empirebaking.com › dallas",
+        "snippet": "Dallas bakery and breakfast pastries",
+        "source": "Empire Baking Company"
+      },
+      {
+        "position": 2,
+        "title": "Sign in to your Microsoft account",
+        "link": "https://login.live.com/",
+        "snippet": "Outlook, Microsoft account, and Live login",
+        "source": "Microsoft"
+      },
+      {
+        "position": 3,
+        "title": "Harlingen Bakery",
+        "link": "https://harlingenbakery.example/",
+        "snippet": "Family bakery in Harlingen, TX",
+        "source": "Harlingen Bakery"
+      },
+      {
+        "position": 4,
+        "title": "LiveScore basketball",
+        "link": "https://www.livescore.com/basketball",
+        "snippet": "Live scores and fixtures",
+        "source": "LiveScore"
+      },
+      {
+        "position": 5,
+        "title": "Dallas Bakery Guide Ad",
+        "link": "https://ads.example/guide",
+        "snippet": "Sponsored bakery guide for Dallas"
+      },
+      {
+        "position": 6,
+        "title": "Search results",
+        "link": "https://www.google.com/search?q=bakeries",
+        "snippet": "Bakeries in Dallas"
+      }
+    ],
+    "local_results": {
+      "places": [
+        {
+          "title": "Empire Baking Company",
+          "address": "5450 W Lovers Ln, Dallas, TX 75209",
+          "type": "Bakery",
+          "description": "Dallas bakery known for breakfast pastries",
+          "place_id": "ChIJ-empire",
+          "links": {
+            "website": "https://empirebaking.com/dallas"
+          }
+        },
+        {
+          "title": "Village Baking Co",
+          "address": "4228 Oak Lawn Ave, Dallas, TX 75219",
+          "type": "Bakery",
+          "description": "Neighborhood bakery in Dallas",
+          "place_id": "ChIJ-village",
+          "links": {
+            "website": "https://villagebaking.com/"
+          }
+        },
+        {
+          "title": "Counter Only Bakery",
+          "address": "100 Main St, Dallas, TX",
+          "type": "Bakery",
+          "description": "Dallas bakery with no public website",
+          "place_id_search": "https://serpapi.com/search.json?engine=google_local&q=counter"
+        }
+      ]
+    }
+  },
+  "google_local": {
+    "search_metadata": {
+      "status": "Success",
+      "engine": "google_local"
+    },
+    "local_results": [
+      {
+        "title": "Village Baking Co",
+        "address": "4228 Oak Lawn Ave, Dallas, TX 75219",
+        "type": "Bakery",
+        "description": "Neighborhood bakery in Dallas",
+        "place_id": "ChIJ-village",
+        "links": {
+          "website": "https://villagebaking.com/"
+        }
+      },
+      {
+        "title": "Corner Bakery Dallas",
+        "address": "3100 McKinney Ave, Dallas, TX 75204",
+        "type": "Bakery",
+        "description": "Cafe bakery in Dallas",
+        "website": "https://cornerbakery.example/dallas"
+      },
+      {
+        "title": "Harlingen Sweets",
+        "address": "200 W Jackson Ave, Harlingen, TX",
+        "type": "Bakery",
+        "description": "Bakery in Harlingen",
+        "links": {
+          "website": "https://harlingensweets.example/"
+        }
+      },
+      {
+        "title": "No Website Bakery",
+        "address": "10 Elm St, Dallas, TX",
+        "type": "Bakery",
+        "place_id_search": "https://serpapi.com/search.json?engine=google_local&q=no-website"
+      }
+    ]
+  }
+}

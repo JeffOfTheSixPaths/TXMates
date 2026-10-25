@@ -21,7 +21,15 @@ import {
   parseMuseEnrichments,
 } from './museEnrich';
 import { discoveryHitRejection } from './activityPolicy';
-import { openSerpEngineOrder, openSerpTimeoutMs } from './serviceTimeouts';
+import {
+  createActivitySearchProvider,
+  type SearchContext,
+  type SearchHit,
+  type SearchProviderEnv,
+  type SearchProviderName,
+} from './searchProvider';
+
+export { openSerpBaseUrl } from './serviceTimeouts';
 
 const CATEGORIES = new Set(['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill']);
 
@@ -38,14 +46,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export const DISCOVERY_CATEGORIES = ['all', ...CATEGORIES] as const;
 
-type OpenSerpHit = {
-  title?: string;
-  url?: string;
-  snippet?: string;
-  domain?: string;
-  engine?: string;
-};
-
 export type RefreshInput = {
   location: string;
   category: string;
@@ -55,6 +55,7 @@ export type RefreshInput = {
   policy?: ActivityPolicy;
   allowMuse?: boolean;
   awaitMuse?: boolean;
+  searchEnv?: SearchProviderEnv;
 };
 
 const inflight = new Map<string, Promise<void>>();
@@ -138,10 +139,6 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function openSerpBaseUrl(raw = process.env.OPENSERP_URL): string {
-  return (raw || 'http://127.0.0.1:7000').replace(/\/$/, '');
-}
-
 export async function refreshDiscoveryQuery(
   db: DatabaseSync,
   input: RefreshInput
@@ -153,11 +150,18 @@ export async function refreshDiscoveryQuery(
   const searchText = buildSearchText(location, category, query);
   const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
   const cityLabel = formatCityLabel(cleanCity);
-  const hits = await fetchOpenSerp(searchText, input.fetchImpl, {
-    location,
-    query: searchText,
-  });
+  const searched = await fetchActivitySearch(
+    searchText,
+    input.fetchImpl,
+    {
+      location,
+      query: searchText,
+    },
+    input.searchEnv
+  );
+  const hits = searched.hits;
   if (!hits) return { ok: false, ids: [] };
+  const discoveredVia = searched.provider === 'serpapi' ? 'SerpApi' : 'OpenSERP';
 
   const ids: string[] = [];
   for (const hit of hits) {
@@ -184,7 +188,7 @@ export async function refreshDiscoveryQuery(
     const saved = upsertActivity(db, {
       name: title,
       url,
-      snippet: hit.snippet || `Discovered via OpenSERP on ${hit.domain || 'the web'}`,
+      snippet: hit.snippet || `Discovered via ${discoveredVia} on ${hit.domain || 'the web'}`,
       category: finalCategory,
       categoryLabel: category !== 'all' ? CATEGORY_LABELS[finalCategory] || inferred.label : inferred.label,
       location: `${location} (${hit.domain || 'Local venue'})`,
@@ -250,11 +254,12 @@ export async function recheckPlace(
   if (!place || place.kind !== 'place') return 'skipped';
   const now = input.now ?? new Date();
   const text = `"${place.name}" ${input.location || 'Austin, TX'}`;
-  const hits = await fetchOpenSerp(text, input.fetchImpl, {
+  const searched = await fetchActivitySearch(text, input.fetchImpl, {
     location: input.location || 'Austin, TX',
     query: place.name,
     requireQueryMatch: false,
   });
+  const hits = searched.hits;
   if (!hits) return 'skipped';
   return applyRecheck(
     db,
@@ -317,62 +322,39 @@ export async function enrichStoredActivities(
   }
 }
 
-async function fetchOpenSerp(
-  searchText: string,
-  fetchImpl: typeof fetch = fetch,
-  context: { location: string; query: string; requireQueryMatch?: boolean } = {
-    location: 'Austin, TX',
-    query: searchText,
-  }
-): Promise<OpenSerpHit[] | null> {
-  const engines = openSerpEngineOrder();
-  let sawResponse = false;
-  for (const engine of engines) {
-    const hits = await fetchOpenSerpEngine(engine, searchText, fetchImpl);
-    if (!hits) continue;
-    sawResponse = true;
-    const accepted = hits.filter((hit) => {
-      const title = cleanTitle(hit.title || '');
-      if (!title || !(hit.url || '') || isSponsoredTitle(hit.title || '') || isSponsoredTitle(title)) return false;
-      return (
-        discoveryHitRejection({
-          title,
-          snippet: hit.snippet || '',
-          url: hit.url || '',
-          location: context.location,
-          query: context.query,
-          requireQueryMatch: context.requireQueryMatch,
-        }) === null
-      );
-    });
-    if (accepted.length > 0) {
-      return accepted.map((hit) => ({ ...hit, engine: hit.engine || engine }));
-    }
-  }
-  return sawResponse ? [] : null;
+export function filterDiscoveryHits(hits: SearchHit[], engine: string, context: SearchContext): SearchHit[] {
+  const accepted = hits.filter((hit) => {
+    const title = cleanTitle(hit.title || '');
+    if (!title || !(hit.url || '') || isSponsoredTitle(hit.title || '') || isSponsoredTitle(title)) return false;
+    return (
+      discoveryHitRejection({
+        title,
+        snippet: hit.snippet || '',
+        url: hit.url || '',
+        location: context.location,
+        query: context.query,
+        requireQueryMatch: context.requireQueryMatch,
+      }) === null
+    );
+  });
+  return accepted.map((hit) => ({ ...hit, engine: hit.engine || engine }));
 }
 
-async function fetchOpenSerpEngine(
-  engine: string,
+async function fetchActivitySearch(
   searchText: string,
-  fetchImpl: typeof fetch
-): Promise<OpenSerpHit[] | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), openSerpTimeoutMs());
-  try {
-    const url = `${openSerpBaseUrl()}/mega/search?engines=${encodeURIComponent(engine)}&text=${encodeURIComponent(searchText)}&limit=12`;
-    const response = await fetchImpl(url, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-    if (!response.ok) return null;
-    const data = (await response.json()) as { results?: OpenSerpHit[] };
-    return Array.isArray(data.results) ? data.results : [];
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
+  fetchImpl: typeof fetch = fetch,
+  context: SearchContext = {
+    location: 'Austin, TX',
+    query: searchText,
+  },
+  env?: SearchProviderEnv
+): Promise<{ provider: SearchProviderName; hits: SearchHit[] | null }> {
+  const provider = createActivitySearchProvider({
+    env,
+    filterHits: filterDiscoveryHits,
+  });
+  const hits = await provider.search(searchText, fetchImpl, context);
+  return { provider: provider.name, hits };
 }
 
 function inferCategory(text: string): { category: ActivityCategory; label: string } {
