@@ -21,7 +21,14 @@ import {
   parseMuseEnrichments,
 } from './museEnrich';
 import { discoveryHitRejection } from './activityPolicy';
-import { openSerpEngineOrder, openSerpTimeoutMs } from './serviceTimeouts';
+import {
+  openSerpEngineOrder,
+  openSerpTimeoutMs,
+  searchProvider,
+  serpApiKey,
+  serpApiBaseUrl,
+  serpApiTimeoutMs,
+} from './serviceTimeouts';
 
 const CATEGORIES = new Set(['food', 'music', 'outdoors', 'gaming', 'sports', 'nightlife', 'arts', 'chill']);
 
@@ -38,13 +45,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export const DISCOVERY_CATEGORIES = ['all', ...CATEGORIES] as const;
 
-type OpenSerpHit = {
+export type SearchHit = {
   title?: string;
   url?: string;
   snippet?: string;
   domain?: string;
   engine?: string;
 };
+
+export type OpenSerpHit = SearchHit;
 
 export type RefreshInput = {
   location: string;
@@ -153,7 +162,7 @@ export async function refreshDiscoveryQuery(
   const searchText = buildSearchText(location, category, query);
   const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
   const cityLabel = formatCityLabel(cleanCity);
-  const hits = await fetchOpenSerp(searchText, input.fetchImpl, {
+  const hits = await fetchDiscoveryHits(searchText, input.fetchImpl, {
     location,
     query: searchText,
   });
@@ -250,7 +259,7 @@ export async function recheckPlace(
   if (!place || place.kind !== 'place') return 'skipped';
   const now = input.now ?? new Date();
   const text = `"${place.name}" ${input.location || 'Austin, TX'}`;
-  const hits = await fetchOpenSerp(text, input.fetchImpl, {
+  const hits = await fetchDiscoveryHits(text, input.fetchImpl, {
     location: input.location || 'Austin, TX',
     query: place.name,
     requireQueryMatch: false,
@@ -317,7 +326,134 @@ export async function enrichStoredActivities(
   }
 }
 
-async function fetchOpenSerp(
+export async function fetchSerpApi(
+  searchText: string,
+  fetchImpl: typeof fetch = fetch,
+  context: { location: string; query: string; requireQueryMatch?: boolean } = {
+    location: 'Austin, TX',
+    query: searchText,
+  }
+): Promise<SearchHit[] | null> {
+  const apiKey = serpApiKey();
+  if (!apiKey) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), serpApiTimeoutMs());
+
+  try {
+    const url = new URL(serpApiBaseUrl());
+    url.searchParams.set('q', searchText);
+    url.searchParams.set('engine', 'google');
+    url.searchParams.set('num', '12');
+    url.searchParams.set('api_key', apiKey);
+    url.searchParams.set('hl', 'en');
+    url.searchParams.set('gl', 'us');
+
+    const response = await fetchImpl(url.toString(), {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      error?: string;
+      organic_results?: Array<{
+        title?: string;
+        link?: string;
+        snippet?: string;
+        displayed_link?: string;
+        source?: string;
+      }>;
+      local_results?: {
+        places?: Array<{
+          title?: string;
+          link?: string;
+          description?: string;
+          address?: string;
+        }>;
+      };
+    };
+
+    if (data.error) return null;
+
+    const rawHits: SearchHit[] = [];
+
+    if (Array.isArray(data.organic_results)) {
+      for (const r of data.organic_results) {
+        let domain = r.source || r.displayed_link;
+        if (!domain && r.link) {
+          try {
+            domain = new URL(r.link).hostname.replace(/^www\./, '');
+          } catch {
+            domain = undefined;
+          }
+        }
+        rawHits.push({
+          title: r.title,
+          url: r.link,
+          snippet: r.snippet,
+          domain,
+          engine: 'serpapi',
+        });
+      }
+    }
+
+    if (Array.isArray(data.local_results?.places)) {
+      for (const p of data.local_results.places) {
+        if (p.title && p.link) {
+          rawHits.push({
+            title: p.title,
+            url: p.link,
+            snippet: p.description || p.address || 'Local spot',
+            domain: 'local',
+            engine: 'serpapi',
+          });
+        }
+      }
+    }
+
+    const accepted = rawHits.filter((hit) => {
+      const title = cleanTitle(hit.title || '');
+      if (!title || !(hit.url || '') || isSponsoredTitle(hit.title || '') || isSponsoredTitle(title)) return false;
+      return (
+        discoveryHitRejection({
+          title,
+          snippet: hit.snippet || '',
+          url: hit.url || '',
+          location: context.location,
+          query: context.query,
+          requireQueryMatch: context.requireQueryMatch,
+        }) === null
+      );
+    });
+
+    return accepted;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function fetchDiscoveryHits(
+  searchText: string,
+  fetchImpl: typeof fetch = fetch,
+  context: { location: string; query: string; requireQueryMatch?: boolean } = {
+    location: 'Austin, TX',
+    query: searchText,
+  }
+): Promise<SearchHit[] | null> {
+  const provider = searchProvider();
+  if (provider === 'serpapi') {
+    const hits = await fetchSerpApi(searchText, fetchImpl, context);
+    if (hits !== null) return hits;
+    // Fall back to OpenSERP if SerpAPI did not answer or has no results
+    return fetchOpenSerp(searchText, fetchImpl, context);
+  }
+  return fetchOpenSerp(searchText, fetchImpl, context);
+}
+
+export async function fetchOpenSerp(
   searchText: string,
   fetchImpl: typeof fetch = fetch,
   context: { location: string; query: string; requireQueryMatch?: boolean } = {
@@ -352,7 +488,7 @@ async function fetchOpenSerp(
   return sawResponse ? [] : null;
 }
 
-async function fetchOpenSerpEngine(
+export async function fetchOpenSerpEngine(
   engine: string,
   searchText: string,
   fetchImpl: typeof fetch

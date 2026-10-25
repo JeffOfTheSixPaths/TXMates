@@ -38,7 +38,7 @@ export function SwapPicker({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<ActivityCategory | "all">("all");
   const [pool, setPool] = useState<Activity[]>([]);
-  const [source, setSource] = useState<"openserp" | "saved" | "fallback" | null>(null);
+  const [source, setSource] = useState<"openserp" | "serpapi" | "saved" | "fallback" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,7 +73,7 @@ export function SwapPicker({
           return;
         }
         setPool(activities);
-        setSource(data.source === "saved" || data.source === "openserp" ? data.source : "fallback");
+        setSource(data.source === "saved" || data.source === "openserp" || data.source === "serpapi" ? data.source : "fallback");
         setNotice(typeof data.notice === "string" ? data.notice : null);
       })
       .catch(() => {
@@ -187,7 +187,7 @@ export function SwapPicker({
               >
                 {source === "fallback"
                   ? notice || "Curated catalog. Saved spots were not available for this search."
-                  : source === "openserp"
+                  : source === "openserp" || source === "serpapi"
                     ? notice || "Live spots saved for this city, with Muse notes when a listing has them."
                     : notice || "Saved spots for this city, including Muse notes and event dates when a listing has them."}
               </p>

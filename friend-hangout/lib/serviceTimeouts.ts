@@ -1,10 +1,14 @@
 export const DEFAULT_OPENSERP_TIMEOUT_MS = 15_000;
 export const MAX_OPENSERP_TIMEOUT_MS = 30_000;
+export const DEFAULT_SERPAPI_TIMEOUT_MS = 15_000;
+export const MAX_SERPAPI_TIMEOUT_MS = 30_000;
 export const DEFAULT_MUSE_TIMEOUT_MS = 25_000;
 export const MAX_MUSE_TIMEOUT_MS = 60_000;
 export const DEFAULT_OPENSERP_ENGINES = 'duckduckgo,bing';
 
 const ENGINE_NAME = /^[a-z0-9_-]+$/i;
+
+export type SearchProvider = 'openserp' | 'serpapi';
 
 export function resolveTimeoutMs(
   raw: string | undefined,
@@ -15,6 +19,30 @@ export function resolveTimeoutMs(
   const parsed = raw ? Number(raw) : fallback;
   if (!Number.isFinite(parsed) || parsed < min) return fallback;
   return Math.min(Math.round(parsed), max);
+}
+
+export function searchProvider(
+  raw = process.env.SEARCH_PROVIDER || process.env.SERP_PROVIDER
+): SearchProvider {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === 'serpapi' || normalized === 'serp_api' || normalized === 'serp-api') {
+    return 'serpapi';
+  }
+  return 'openserp';
+}
+
+export function serpApiKey(
+  raw = process.env.SERP_API_KEY || process.env.SERPAPI_KEY
+): string {
+  return raw?.trim() || '';
+}
+
+export function serpApiBaseUrl(raw = process.env.SERPAPI_URL): string {
+  return (raw || 'https://serpapi.com/search.json').replace(/\/$/, '');
+}
+
+export function serpApiTimeoutMs(raw = process.env.SERPAPI_TIMEOUT_MS): number {
+  return resolveTimeoutMs(raw, DEFAULT_SERPAPI_TIMEOUT_MS, 1000, MAX_SERPAPI_TIMEOUT_MS);
 }
 
 export function openSerpTimeoutMs(raw = process.env.OPENSERP_TIMEOUT_MS): number {

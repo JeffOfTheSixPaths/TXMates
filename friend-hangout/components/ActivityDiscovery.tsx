@@ -43,7 +43,7 @@ export function ActivityDiscovery({
   const [sortBy, setSortBy] = useState<'recommended' | 'price-low' | 'rating'>('recommended');
 
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [source, setSource] = useState<'openserp' | 'saved' | 'fallback' | null>(null);
+  const [source, setSource] = useState<'openserp' | 'serpapi' | 'saved' | 'fallback' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +66,11 @@ export function ActivityDiscovery({
           const data = await res.json();
           if (Array.isArray(data.activities)) {
             setActivities(data.activities);
-            setSource(data.source === 'openserp' || data.source === 'saved' ? data.source : 'fallback');
+            setSource(
+              data.source === 'openserp' || data.source === 'serpapi' || data.source === 'saved'
+                ? data.source
+                : 'fallback'
+            );
             setNotice(typeof data.notice === 'string' ? data.notice : null);
             setRefreshing(Boolean(data.refreshing));
           }
@@ -159,21 +163,23 @@ export function ActivityDiscovery({
         <p role="status" className="mt-4 border border-seam bg-sheet px-4 py-3 text-base text-ink">
           {hasLoaded
             ? 'Checking saved spots again. The list below is the last answer, not a new one yet.'
-            : 'Checking saved spots. A new OpenSERP search can take about 15 seconds.'}
+            : 'Checking saved spots. A new web search can take about 10–15 seconds.'}
         </p>
       ) : (
         <p
           role="status"
-          className={`mt-4 px-4 py-3 text-base ${source === 'openserp' ? 'bg-leaf text-white' : source === 'saved' ? 'border border-seam bg-sheet text-ink' : 'bg-sun text-ink'}`}
+          className={`mt-4 px-4 py-3 text-base ${source === 'openserp' || source === 'serpapi' ? 'bg-leaf text-white' : source === 'saved' ? 'border border-seam bg-sheet text-ink' : 'bg-sun text-ink'}`}
         >
           {notice ||
-            (source === 'openserp'
-              ? 'Live OpenSERP results, saved on this machine. Prices and hours are still estimates.'
-              : source === 'saved'
-                ? refreshing
-                  ? 'Saved spots are on screen. OpenSERP is refreshing this search in the background.'
-                  : 'Saved spots from this machine.'
-                : 'Demo catalog. OpenSERP did not answer and nothing is saved for this search yet.')}
+            (source === 'serpapi'
+              ? 'Live SerpAPI results, saved on this machine. Prices and hours are still estimates.'
+              : source === 'openserp'
+                ? 'Live OpenSERP results, saved on this machine. Prices and hours are still estimates.'
+                : source === 'saved'
+                  ? refreshing
+                    ? 'Saved spots are on screen. Web search is refreshing this search in the background.'
+                    : 'Saved spots from this machine.'
+                  : 'Demo catalog. Web search did not answer and nothing is saved for this search yet.')}
         </p>
       )}
 

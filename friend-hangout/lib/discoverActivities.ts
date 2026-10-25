@@ -20,10 +20,10 @@ import {
 } from './discoverySearch';
 import { catalogActivitiesForSearch } from './eventCatalog';
 import { getActivitiesForLocation } from './mockData';
-import { openSerpTimeoutMs } from './serviceTimeouts';
+import { openSerpTimeoutMs, searchProvider, serpApiTimeoutMs } from './serviceTimeouts';
 
 export type DiscoveryPayload = {
-  source: 'openserp' | 'saved' | 'fallback';
+  source: 'openserp' | 'serpapi' | 'saved' | 'fallback';
   isLive: boolean;
   refreshing: boolean;
   relaxed: boolean;
@@ -95,7 +95,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
           .filter((row): row is NonNullable<typeof row> => Boolean(row));
         if (liveRows.length > 0) {
           return {
-            source: 'openserp',
+            source: searchProvider() === 'serpapi' ? 'serpapi' : 'openserp',
             isLive: true,
             refreshing: false,
             relaxed: false,
@@ -164,7 +164,7 @@ export async function discoverActivities(db: DatabaseSync, input: DiscoverInput 
     if (again.rows.length > 0) {
       const liveIds = new Set(refreshed.ids);
       return {
-        source: 'openserp',
+        source: searchProvider() === 'serpapi' ? 'serpapi' : 'openserp',
         isLive: true,
         refreshing: false,
         relaxed: again.relaxed,
@@ -216,17 +216,20 @@ function fallbackPayload(
       }),
   ];
   const ranked = searchCatalog(pool, query);
-  const timeout = openSerpTimeoutMs();
+  const provider = searchProvider();
+  const providerName = provider === 'serpapi' ? 'SerpAPI' : 'OpenSERP';
+  const timeout = provider === 'serpapi' ? serpApiTimeoutMs() : openSerpTimeoutMs();
   const base = openSerpBaseUrl();
+  const noticeTarget = provider === 'serpapi' ? 'SerpAPI' : `OpenSERP at ${base}`;
   const hasCatalog = ranked.activities.some((activity) => activity.resultFreshness === 'catalog');
   const onlyCatalog = hasCatalog && ranked.activities.every((activity) => activity.resultFreshness === 'catalog');
   const notice = ranked.relaxed
-    ? `Nothing matched "${query}". Showing the wider ${cleanCity} demo list. OpenSERP did not answer at ${base} within ${timeout}ms, and nothing saved matched either.`
+    ? `Nothing matched "${query}". Showing the wider ${cleanCity} demo list. ${noticeTarget} did not answer within ${timeout}ms, and nothing saved matched either.`
     : onlyCatalog
-      ? `OpenSERP did not answer at ${base} within ${timeout}ms. Showing upcoming ${cleanCity} events from the saved calendar.`
+      ? `${providerName} did not answer within ${timeout}ms. Showing upcoming ${cleanCity} events from the saved calendar.`
       : hasCatalog
-        ? `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Showing upcoming ${cleanCity} events and the demo catalog.`
-        : `OpenSERP did not answer at ${base} within ${timeout}ms, and nothing is saved for this search yet. Serving the curated ${cleanCity} demo catalog.`;
+        ? `${providerName} did not answer within ${timeout}ms, and nothing is saved for this search yet. Showing upcoming ${cleanCity} events and the demo catalog.`
+        : `${providerName} did not answer within ${timeout}ms, and nothing is saved for this search yet. Serving the curated ${cleanCity} demo catalog.`;
   return {
     source: 'fallback',
     isLive: false,
@@ -239,20 +242,22 @@ function fallbackPayload(
 }
 
 function widerAfterMiss(query: string): string {
-  return `Nothing matched "${query}". OpenSERP did not return results, so this is the wider saved list.`;
+  const providerName = searchProvider() === 'serpapi' ? 'SerpAPI' : 'OpenSERP';
+  return `Nothing matched "${query}". ${providerName} did not return results, so this is the wider saved list.`;
 }
 
 function savedNotice(relaxed: boolean, refreshing: boolean, query: string): string {
+  const providerName = searchProvider() === 'serpapi' ? 'SerpAPI' : 'OpenSERP';
   if (relaxed && refreshing) {
-    return `Nothing matched "${query}". Showing the wider saved list while OpenSERP refreshes this search.`;
+    return `Nothing matched "${query}". Showing the wider saved list while ${providerName} refreshes this search.`;
   }
   if (relaxed) {
     return `Nothing matched "${query}". Showing the wider saved list instead of an empty one.`;
   }
   if (refreshing) {
-    return 'Saved spots are on screen. OpenSERP is refreshing this search in the background.';
+    return `Saved spots are on screen. ${providerName} is refreshing this search in the background.`;
   }
-  return 'Saved spots from this machine. A new OpenSERP check runs once this search is a few hours old.';
+  return `Saved spots from this machine. A new ${providerName} check runs once this search is a few hours old.`;
 }
 
 function relaxedNotice(query: string): string {

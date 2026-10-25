@@ -103,6 +103,69 @@ describe('discovery search', () => {
     db.close();
   });
 
+  it('waits for SerpAPI when SEARCH_PROVIDER=serpapi, maps organic results, and skips sponsored titles', async () => {
+    const previousProvider = process.env.SEARCH_PROVIDER;
+    const previousKey = process.env.SERP_API_KEY;
+    process.env.SEARCH_PROVIDER = 'serpapi';
+    process.env.SERP_API_KEY = 'mock-serp-key';
+
+    try {
+      const db = new DatabaseSync(':memory:');
+      const now = new Date('2026-10-25T12:00:00.000Z');
+      upsertActivity(db, draft(now));
+
+      let requested = '';
+      const fetchImpl: typeof fetch = async (input) => {
+        requested = String(input);
+        return new Response(
+          JSON.stringify({
+            organic_results: [
+              {
+                title: 'Authentic Migas Tacos at Veracruz All Natural',
+                link: 'https://veracruz.example/migas',
+                snippet: 'Famous breakfast tacos in East Austin',
+                source: 'veracruz.example',
+              },
+              {
+                title: 'Sponsored Taco Tours Ad',
+                link: 'https://ads.example/tacos',
+                snippet: 'Ad',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      };
+
+      const found = await discoverActivities(db, {
+        query: 'tacos',
+        location: 'Austin, TX',
+        now,
+        fetchImpl,
+        allowMuse: false,
+      });
+
+      assert.match(decodeURIComponent(requested.replace(/\+/g, ' ')), /tacos in Austin, TX/);
+      assert.match(requested, /api_key=mock-serp-key/);
+      assert.match(requested, /engine=google/);
+      assert.equal(found.source, 'serpapi');
+      assert.deepEqual(
+        found.activities.map((activity) => activity.name),
+        ['Authentic Migas Tacos at Veracruz All Natural']
+      );
+
+      const names = db.prepare(`SELECT name FROM activities`).all() as Array<{ name: string }>;
+      assert.equal(names.some((row) => row.name.includes('Sponsored Taco Tours')), false);
+      assert.equal(names.some((row) => row.name === 'Authentic Migas Tacos at Veracruz All Natural'), true);
+      db.close();
+    } finally {
+      if (previousProvider === undefined) delete process.env.SEARCH_PROVIDER;
+      else process.env.SEARCH_PROVIDER = previousProvider;
+      if (previousKey === undefined) delete process.env.SERP_API_KEY;
+      else process.env.SERP_API_KEY = previousKey;
+    }
+  });
+
   it('uses the wider saved list only when OpenSERP fails', async () => {
     const db = new DatabaseSync(':memory:');
     const now = new Date('2026-10-25T12:00:00.000Z');
