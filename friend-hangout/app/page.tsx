@@ -7,6 +7,7 @@ import {
   HangoutPreferences,
   PlanningViewType,
   Friend,
+  SquadPricePointResponse,
 } from '@/types';
 import { INITIAL_FRIENDS } from '@/lib/mockData';
 import { generatePlan, buildItinerary, calculateAvailabilityOverlap } from '@/lib/planner';
@@ -50,6 +51,8 @@ export default function Home() {
   const [nessieLoading, setNessieLoading] = useState(true);
   const [nessieCustomerId, setNessieCustomerId] = useState('');
   const [nessieAccountId, setNessieAccountId] = useState('');
+  const [squadAdvisory, setSquadAdvisory] = useState<SquadPricePointResponse | null>(null);
+  const [squadAdvisoryLoading, setSquadAdvisoryLoading] = useState(true);
   const [scheduleRevision, setScheduleRevision] = useState(0);
   const budgetTouched = useRef(false);
   const [liveAiData, setLiveAiData] = useState<
@@ -109,6 +112,32 @@ export default function Home() {
       cancelled = true;
     };
   }, [friendCount, nessieCustomerId, nessieAccountId]);
+
+  // Fetch squad price point recommendations from Nessie & Meta Muse Spark
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/nessie/price-point', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ friends: preferences.friends }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: SquadPricePointResponse | null) => {
+        if (cancelled || !data) return;
+        setSquadAdvisory(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSquadAdvisory(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSquadAdvisoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferences.friends]);
 
   // Sync to SQL on preference changes
   useEffect(() => {
@@ -324,6 +353,18 @@ export default function Home() {
     setScheduleRevision((revision) => revision + 1);
   };
 
+  const handleApplySquadPricePoint = (target: number) => {
+    budgetTouched.current = true;
+    setPreferences((prev) => ({
+      ...prev,
+      maxBudgetPerPerson: target,
+      friends: prev.friends.map((f) => ({
+        ...f,
+        budgetPreference: target,
+      })),
+    }));
+  };
+
   const overlap = calculateAvailabilityOverlap(preferences.friends);
   const runnerHours = useMemo(
     () => buildRunnerHours(preferences.friends),
@@ -442,6 +483,9 @@ export default function Home() {
                     setNessieLoading(true);
                     setNessieAccountId(accountId);
                   }}
+                  squadAdvisory={squadAdvisory}
+                  squadAdvisoryLoading={squadAdvisoryLoading}
+                  onApplySquadPricePoint={handleApplySquadPricePoint}
                 />
               </div>
             </div>
@@ -459,6 +503,7 @@ export default function Home() {
                 preferences={preferences}
                 musePending={musePending}
                 scheduleRevision={scheduleRevision}
+                squadAdvisory={squadAdvisory}
               />
             </div>
           </div>

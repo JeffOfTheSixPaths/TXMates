@@ -11,7 +11,7 @@ import {
   TrendingDown,
   Zap,
 } from "lucide-react";
-import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity } from "@/types";
+import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity, SquadPricePointResponse } from "@/types";
 import { formatAge } from "@/lib/activityFormat";
 import { buildItinerary } from "@/lib/planner";
 import { editItinerary, spendSummary } from "@/lib/itineraryEdit";
@@ -26,6 +26,7 @@ interface PlanningViewsProps {
   preferences: HangoutPreferences;
   musePending?: boolean;
   scheduleRevision?: number;
+  squadAdvisory?: SquadPricePointResponse | null;
 }
 
 const VIEWS: {
@@ -61,6 +62,7 @@ export function PlanningViews({
   preferences,
   musePending = false,
   scheduleRevision = 0,
+  squadAdvisory,
 }: PlanningViewsProps) {
   const friends = preferences.friends;
   const groupName = preferences.groupName;
@@ -355,6 +357,41 @@ export function PlanningViews({
           </div>
         </dl>
         <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
+
+        {squadAdvisory && (
+          <div className="mt-5 border border-seam bg-sheet p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-seam pb-2">
+              <div>
+                <h3 className="text-base font-semibold text-ink">
+                  Overall Budget Alignment
+                </h3>
+                <p className="text-xs text-ink-soft">
+                  Recommended cap: ${squadAdvisory.groupPricePoint}/person (${squadAdvisory.groupTotalPool} total group pool).
+                </p>
+              </div>
+              <span
+                className={`border px-2 py-0.5 text-xs font-semibold ${
+                  spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
+                    ? "border-leaf/30 bg-leaf/10 text-leaf"
+                    : "border-tomato/30 bg-tomato/10 text-tomato"
+                }`}
+              >
+                {spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
+                  ? "Within Squad Comfort Cap"
+                  : `+$${(spend.totalCostPerPerson - squadAdvisory.groupPricePoint).toFixed(0)} Over Squad Cap`}
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-ink">
+              {squadAdvisory.rationale}
+            </p>
+            {squadAdvisory.coordinationTip && (
+              <p className="mt-2 border-t border-seam pt-2 text-xs text-ink-soft">
+                <span className="font-semibold text-ink">Coordination tip: </span>
+                {squadAdvisory.coordinationTip}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       <section id="itinerary-schedule" aria-busy={!editsReady || saving}>

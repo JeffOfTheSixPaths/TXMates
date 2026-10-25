@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import type { NessieBudgetResponse } from '@/lib/nessieBudget';
+import type { SquadPricePointResponse } from '@/types';
+import { NessieSquadPriceAdvisor } from './NessieSquadPriceAdvisor';
 import {
   AlertCircle,
   Calendar,
@@ -34,6 +36,9 @@ interface HangoutFormProps {
   nessieLoading: boolean;
   onSelectCustomer: (customerId: string) => void;
   onSelectAccount: (accountId: string) => void;
+  squadAdvisory?: SquadPricePointResponse | null;
+  squadAdvisoryLoading?: boolean;
+  onApplySquadPricePoint?: (target: number) => void;
 }
 
 export function HangoutForm({
@@ -45,6 +50,9 @@ export function HangoutForm({
   nessieLoading,
   onSelectCustomer,
   onSelectAccount,
+  squadAdvisory,
+  squadAdvisoryLoading,
+  onApplySquadPricePoint,
 }: HangoutFormProps) {
   const [showAdvancedFriends, setShowAdvancedFriends] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -367,13 +375,20 @@ export function HangoutForm({
                         {friend.name.charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0">
-                        <input
-                          type="text"
-                          value={friend.name}
-                          aria-label={`Name for mate ${idx + 1}`}
-                          onChange={(e) => handleUpdateFriendName(friend.id, e.target.value)}
-                          className="w-full max-w-[14rem] bg-transparent text-base font-semibold text-ink"
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={friend.name}
+                            aria-label={`Name for mate ${idx + 1}`}
+                            onChange={(e) => handleUpdateFriendName(friend.id, e.target.value)}
+                            className="w-full max-w-[14rem] bg-transparent text-base font-semibold text-ink"
+                          />
+                          {friend.nessieCustomerId && (
+                            <span className="shrink-0 border border-leaf/40 bg-leaf/10 px-1.5 py-0.5 text-[10px] font-semibold text-leaf">
+                              Nessie
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-ink-soft">
                           {idx === 0
                             ? "Organizer"
@@ -478,6 +493,28 @@ export function HangoutForm({
             onSelectCustomer={onSelectCustomer}
             onSelectAccount={onSelectAccount}
           />
+          {squadAdvisory && (
+            <NessieSquadPriceAdvisor
+              advisory={squadAdvisory}
+              loading={Boolean(squadAdvisoryLoading)}
+              currentBudget={preferences.maxBudgetPerPerson}
+              friendNames={preferences.friends.map((f) => f.name)}
+              onApplyGroupTarget={(target) => {
+                if (onApplySquadPricePoint) {
+                  onApplySquadPricePoint(target);
+                } else {
+                  onChange({
+                    ...preferences,
+                    maxBudgetPerPerson: target,
+                    friends: preferences.friends.map((f) => ({
+                      ...f,
+                      budgetPreference: target,
+                    })),
+                  });
+                }
+              }}
+            />
+          )}
           <input
             type="range"
             min="10"
