@@ -130,3 +130,7 @@
 [2026-10-24 23:22:47][info][engine=mega][request_id=f0715223][query_hash=f4982bbcf9e9][action=search][browser_profile_id=chrome-linux-swiftshader-fhd][engines_count=1][results_count=5]["Mega search completed"]
 [2026-10-24 23:22:47][info][engine=mega][request_id=f0715223][query_hash=fe664d7f3f54][browser_profile_id=chrome-linux-swiftshader-fhd][ip=127.0.0.1][latency_ms=5294][method=GET][path=/mega/search][status=200]["request completed"]
 [2026-10-24 23:23:41][info][engine=mega][request_id=d9d130fe][query_hash=f077ed883167][ip=127.0.0.1][latency_ms=0][method=GET][path=/mega/search][status=200]["request completed"]
+[2026-10-25 00:38:43][info][engine=bing][request_id=b5b77fa3][query_hash=0c19b62e486e][browser_profile_id=chrome-linux-swiftshader-fhd][lane_id=bing:us]["Browser profile selected"]
+[2026-10-25 00:38:44][info][engine=bing][request_id=b5b77fa3][query_hash=0c19b62e486e]["Found 10 organic result containers"]
+[2026-10-25 00:38:47][info][engine=mega][request_id=b5b77fa3][query_hash=0c19b62e486e][action=search][browser_profile_id=chrome-linux-swiftshader-fhd][engines_count=2][results_count=10]["Mega search completed"]
+[2026-10-25 00:38:47][info][engine=mega][request_id=b5b77fa3][query_hash=8e2893dbb608][browser_profile_id=chrome-linux-swiftshader-fhd][ip=127.0.0.1][latency_ms=3455][method=GET][path=/mega/search][status=200]["request completed"]

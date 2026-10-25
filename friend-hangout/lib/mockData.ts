@@ -973,42 +973,46 @@ export function getActivitiesForLocation(location?: string): Activity[] {
 export const INITIAL_FRIENDS: Friend[] = [
   {
     id: 'f-1',
-    name: 'Alex (Organizer)',
+    name: 'Marcus W. (Organizer)',
     avatarColor: 'bg-teal-600 text-white',
     availabilitySlots: [
       { id: 's-1', startTime: '13:00', endTime: '21:00', label: '1:00 PM - 9:00 PM' },
     ],
-    budgetPreference: 50,
+    budgetPreference: 35,
     topInterests: ['food', 'music', 'gaming'],
+    nessieCustomerId: '83541dfe-0a77-46ad-96dd-add64e9f7371',
   },
   {
     id: 'f-2',
-    name: 'Sam M.',
-    avatarColor: 'bg-sky-600 text-white',
+    name: 'Priya R.',
+    avatarColor: 'bg-purple-600 text-white',
     availabilitySlots: [
       { id: 's-2', startTime: '14:30', endTime: '20:30', label: '2:30 PM - 8:30 PM' },
     ],
-    budgetPreference: 40,
-    topInterests: ['outdoors', 'food', 'chill'],
+    budgetPreference: 50,
+    topInterests: ['arts', 'chill', 'food'],
+    nessieCustomerId: 'a5465fe4-0226-4701-8fe6-a9dfa6928b29',
   },
   {
     id: 'f-3',
-    name: 'Jordan K.',
+    name: 'Tyler N.',
     avatarColor: 'bg-amber-600 text-white',
     availabilitySlots: [
       { id: 's-3', startTime: '15:00', endTime: '22:00', label: '3:00 PM - 10:00 PM' },
     ],
-    budgetPreference: 65,
-    topInterests: ['gaming', 'music', 'nightlife'],
+    budgetPreference: 15,
+    topInterests: ['gaming', 'sports', 'nightlife'],
+    nessieCustomerId: 'bb85e0fa-4390-4c2d-96de-e465e84430a6',
   },
   {
     id: 'f-4',
-    name: 'Taylor R.',
+    name: 'Elena M.',
     avatarColor: 'bg-emerald-600 text-white',
     availabilitySlots: [
       { id: 's-4', startTime: '14:00', endTime: '21:30', label: '2:00 PM - 9:30 PM' },
     ],
-    budgetPreference: 45,
-    topInterests: ['food', 'arts', 'outdoors'],
+    budgetPreference: 20,
+    topInterests: ['outdoors', 'chill', 'music'],
+    nessieCustomerId: 'ebf3da9a-004d-46ee-b496-1f21c6c5d79b',
   },
 ];

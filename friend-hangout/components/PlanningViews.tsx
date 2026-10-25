@@ -11,7 +11,7 @@ import {
   TrendingDown,
   Zap,
 } from "lucide-react";
-import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity } from "@/types";
+import { HangoutPlan, PlanningViewType, HangoutPreferences, ItineraryItem, Activity, SquadPricePointResponse } from "@/types";
 import { formatAge } from "@/lib/activityFormat";
 import { buildItinerary } from "@/lib/planner";
 import { editItinerary, spendSummary } from "@/lib/itineraryEdit";
@@ -26,6 +26,7 @@ interface PlanningViewsProps {
   preferences: HangoutPreferences;
   musePending?: boolean;
   scheduleRevision?: number;
+  squadAdvisory?: SquadPricePointResponse | null;
 }
 
 const VIEWS: {
@@ -61,6 +62,7 @@ export function PlanningViews({
   preferences,
   musePending = false,
   scheduleRevision = 0,
+  squadAdvisory,
 }: PlanningViewsProps) {
   const friends = preferences.friends;
   const groupName = preferences.groupName;
@@ -355,6 +357,62 @@ export function PlanningViews({
           </div>
         </dl>
         <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
+
+        {squadAdvisory && (
+          <div className="mt-5 border border-seam bg-sheet p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-seam pb-2">
+              <div>
+                <h3 className="text-base font-semibold text-ink">
+                  Squad Price Alignment (Capital One Nessie + Muse Spark)
+                </h3>
+                <p className="text-xs text-ink-soft">
+                  Comparing this plan (${spend.totalCostPerPerson.toFixed(0)}/person) to each mate&apos;s financial comfort limit.
+                </p>
+              </div>
+              <span className="bg-pine px-2 py-0.5 text-xs font-semibold text-ink">
+                Group target: ${squadAdvisory.groupPricePoint}
+              </span>
+            </div>
+
+            <ul className="mt-3 divide-y divide-seam text-sm">
+              {squadAdvisory.friends.map((f) => {
+                const diff = spend.totalCostPerPerson - f.suggestedPricePoint;
+                const isOver = diff > 0;
+                return (
+                  <li key={f.friendId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                    <div className="min-w-0 max-w-md">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-ink">{f.name}</span>
+                        <span className="text-xs text-ink-soft">
+                          (Comfort limit: ${f.suggestedPricePoint})
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-soft">{f.insight}</p>
+                    </div>
+                    <div>
+                      {isOver ? (
+                        <span className="inline-flex items-center border border-tomato/40 bg-tomato/10 px-2 py-0.5 text-xs font-semibold text-tomato">
+                          +${diff.toFixed(0)} over limit
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center border border-leaf/40 bg-leaf/10 px-2 py-0.5 text-xs font-semibold text-leaf">
+                          Fits comfortably
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {squadAdvisory.coordinationTip && (
+              <p className="mt-3 border-t border-seam pt-2.5 text-xs text-ink">
+                <span className="font-semibold text-ink">Inclusivity tip: </span>
+                {squadAdvisory.coordinationTip}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       <section id="itinerary-schedule" aria-busy={!editsReady || saving}>

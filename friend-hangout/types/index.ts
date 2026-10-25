@@ -56,6 +56,29 @@ export interface Friend {
   topInterests: ActivityCategory[];
   status?: 'pending' | 'submitted';
   submittedAt?: string;
+  nessieCustomerId?: string;
+}
+
+export interface FriendPricePointRecommendation {
+  friendId: string;
+  name: string;
+  nessieCustomerId?: string;
+  checkingBalance: number;
+  savingsBalance: number;
+  debt: number;
+  discretionary: number;
+  suggestedPricePoint: number;
+  insight: string;
+}
+
+export interface SquadPricePointResponse {
+  isLive: boolean;
+  model?: string;
+  groupPricePoint: number;
+  rationale: string;
+  coordinationTip: string;
+  friends: FriendPricePointRecommendation[];
+  source: 'nessie' | 'simulated';
 }
 
 export interface HangoutPreferences {
