@@ -217,19 +217,68 @@ describe('estimateHangoutBudget', () => {
     });
 
     assert.equal(estimate.source, 'nessie');
-    assert.equal(estimate.balance, 2800);
+    assert.equal(estimate.balance, 2300);
+    assert.equal(estimate.savingsBalance, 500);
+    assert.equal(estimate.plannedMonthlySavings, 0);
     assert.equal(estimate.recurringMonthly, 826);
     assert.equal(estimate.annualChargesMonthly, 10);
     assert.equal(estimate.typicalMonthlySpend, 210);
     assert.equal(estimate.upcomingCharges, 60);
-    assert.equal(estimate.safetyBuffer, 280);
-    assert.equal(estimate.discretionary, 1424);
+    assert.equal(estimate.safetyBuffer, 230);
+    assert.equal(estimate.discretionary, 974);
     assert.equal(estimate.suggestedPerPerson, 150);
     assert.equal(estimate.friendCount, 4);
     assert.equal(
       estimate.reasoning,
-      'Balance $2,800, typical spending ~$210/mo, recurring ~$826/mo incl. annual charges, suggested hangout budget $150/person.'
+      'Balance $2,300 (Nessie does not update this from purchases or deposits), savings $500 held separately, typical spending ~$210/mo, recurring ~$826/mo incl. annual charges, suggested hangout budget $150/person.'
     );
+  });
+
+  it('keeps savings out of spendable cash and subtracts a monthly savings plan', () => {
+    const estimate = estimateHangoutBudget({
+      now: NOW,
+      accounts: [
+        { id: 'chk', type: 'Checking', nickname: 'Daily', balance: 400 },
+        { id: 'sav', type: 'Savings', nickname: 'Rainy', balance: 5000 },
+        { id: 'cc', type: 'Credit Card', nickname: 'Card', balance: 0 },
+      ],
+      purchases: [],
+      bills: [],
+      deposits: [
+        {
+          id: 'dep-same',
+          accountId: 'sav',
+          amount: 100,
+          transactionDate: '2025-01-04',
+          status: 'completed',
+          description: 'Payday transfer',
+        },
+        {
+          id: 'dep-once',
+          accountId: 'chk',
+          amount: 900,
+          transactionDate: '2025-02-01',
+          status: 'completed',
+          description: 'Paycheck',
+        },
+      ],
+      transfers: [
+        { id: 't1', payerId: 'chk', payeeId: 'sav', amount: 100, transactionDate: '2025-01-04', status: 'completed' },
+        { id: 't1', payerId: 'chk', payeeId: 'sav', amount: 100, transactionDate: '2025-01-04', status: 'completed' },
+        { id: 't2', payerId: 'chk', payeeId: 'sav', amount: 100, transactionDate: '2025-02-04', status: 'completed' },
+        { id: 't3', payerId: 'chk', payeeId: 'sav', amount: 100, transactionDate: '2025-03-04', status: 'completed' },
+        { id: 'out', payerId: 'sav', payeeId: 'chk', amount: 100, transactionDate: '2025-03-20', status: 'completed' },
+      ],
+    });
+    assert.equal(estimate.balance, 400);
+    assert.equal(estimate.savingsBalance, 5000);
+    assert.equal(estimate.plannedMonthlySavings, 100);
+    assert.equal(estimate.safetyBuffer, 50);
+    assert.equal(estimate.discretionary, 250);
+    assert.equal(estimate.suggestedPerPerson, 50);
+    assert.match(estimate.reasoning, /savings \$5,000 held separately/);
+    assert.match(estimate.reasoning, /planned savings ~\$100\/mo/);
+    assert.match(estimate.reasoning, /does not update this from purchases or deposits/);
   });
 
   it('suggests $0 when obligations consume the balance', () => {

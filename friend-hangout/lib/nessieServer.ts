@@ -75,14 +75,20 @@ export async function loadNessieBudget(options: {
 
     const purchases: unknown[] = [];
     const bills: unknown[] = [];
+    const deposits: unknown[] = [];
+    const transfers: unknown[] = [];
     await Promise.all(
       accounts.map(async (account) => {
-        const [purchasePayload, billPayload] = await Promise.all([
+        const [purchasePayload, billPayload, depositPayload, transferPayload] = await Promise.all([
           nessieGet(`/accounts/${account.id}/purchases`, key),
           nessieGet(`/accounts/${account.id}/bills`, key),
+          nessieGetOptional(`/accounts/${account.id}/deposits`, key),
+          nessieGetOptional(`/accounts/${account.id}/transfers`, key),
         ]);
         purchases.push(...asList(purchasePayload));
         bills.push(...asList(billPayload));
+        deposits.push(...asList(depositPayload).map((item) => withAccountId(item, account.id)));
+        transfers.push(...asList(transferPayload));
       })
     );
 
@@ -90,6 +96,8 @@ export async function loadNessieBudget(options: {
       accounts,
       purchases,
       bills,
+      deposits,
+      transfers,
       friendCount,
       now: options.now,
     });
@@ -181,6 +189,21 @@ function selectAccounts(
     accountLocked: false,
     notice: null,
   };
+}
+
+async function nessieGetOptional(path: string, key: string): Promise<unknown> {
+  try {
+    return await nessieGet(path, key);
+  } catch {
+    return [];
+  }
+}
+
+function withAccountId(item: unknown, accountId: string): unknown {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+  const record = item as Record<string, unknown>;
+  if (typeof record.account_id === 'string' && record.account_id) return item;
+  return { ...record, account_id: accountId };
 }
 
 async function nessieGet(path: string, key: string): Promise<unknown> {

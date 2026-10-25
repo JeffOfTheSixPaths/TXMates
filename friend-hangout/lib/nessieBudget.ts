@@ -34,6 +34,25 @@ export type NessieBillInput = {
   upcomingPaymentDate?: string;
 };
 
+export type NessieDepositInput = {
+  id: string;
+  accountId: string;
+  amount: number;
+  transactionDate: string;
+  status?: string;
+  description?: string;
+};
+
+export type NessieTransferInput = {
+  id: string;
+  payerId: string;
+  payeeId: string;
+  amount: number;
+  transactionDate: string;
+  status?: string;
+  description?: string;
+};
+
 export type RecurringCharge = {
   key: string;
   label: string;
@@ -55,6 +74,8 @@ export type HangoutBudgetEstimate = {
   discretionary: number;
   suggestedPerPerson: number;
   friendCount: number;
+  savingsBalance: number;
+  plannedMonthlySavings: number;
   reasoning: string;
   recurring: RecurringCharge[];
   museTips?: string[];
@@ -116,6 +137,8 @@ export function simulatedHangoutBudget(
     discretionary: 0,
     suggestedPerPerson: 50,
     friendCount: Math.max(1, friendCount),
+    savingsBalance: 0,
+    plannedMonthlySavings: 0,
     reasoning,
     recurring: [],
   };
@@ -207,6 +230,8 @@ export function estimateHangoutBudget(input: {
   accounts: NessieAccountInput[];
   purchases: NessiePurchaseInput[];
   bills: NessieBillInput[];
+  deposits?: NessieDepositInput[];
+  transfers?: NessieTransferInput[];
   friendCount?: number;
   now?: Date;
 }): HangoutBudgetEstimate {
@@ -214,6 +239,8 @@ export function estimateHangoutBudget(input: {
   const friendCount = Math.max(1, input.friendCount ?? 1);
   const { recurring, upcomingCharges } = detectRecurringCharges(input.purchases, input.bills, now);
   const balance = roundMoney(spendableBalance(input.accounts));
+  const saved = roundMoney(savingsBalance(input.accounts));
+  const plannedMonthlySavings = plannedSavings(input.accounts, input.deposits ?? [], input.transfers ?? []);
   const typicalMonthlySpend = roundMoney(
     typicalMonthlyNonRecurring(input.purchases, recurring)
   );
@@ -228,7 +255,7 @@ export function estimateHangoutBudget(input: {
   const safetyBuffer =
     balance > 0 ? Math.min(balance, Math.max(SAFETY_FLOOR, Math.round(balance * SAFETY_RATE))) : 0;
   const discretionary = roundMoney(
-    Math.max(0, balance - typicalMonthlySpend - recurringMonthly - upcomingCharges - safetyBuffer)
+    Math.max(0, balance - typicalMonthlySpend - recurringMonthly - upcomingCharges - safetyBuffer - plannedMonthlySavings)
   );
   const suggestedPerPerson = roundToFive(Math.min(SUGGESTED_CAP, discretionary * HANGOUT_SHARE));
 
@@ -243,12 +270,16 @@ export function estimateHangoutBudget(input: {
     discretionary,
     suggestedPerPerson,
     friendCount,
+    savingsBalance: saved,
+    plannedMonthlySavings,
     reasoning: formatReasoning({
       balance,
       typicalMonthlySpend,
       recurringMonthly,
       annualChargesMonthly,
       suggestedPerPerson,
+      savingsBalance: saved,
+      plannedMonthlySavings,
     }),
     recurring,
   };
@@ -258,6 +289,8 @@ export function budgetFromNessieRecords(input: {
   accounts: unknown[];
   purchases: unknown[];
   bills: unknown[];
+  deposits?: unknown[];
+  transfers?: unknown[];
   friendCount?: number;
   now?: Date;
 }): HangoutBudgetEstimate {
@@ -267,6 +300,12 @@ export function budgetFromNessieRecords(input: {
       .map(mapPurchase)
       .filter((purchase): purchase is NessiePurchaseInput => purchase !== null),
     bills: input.bills.map(mapBill).filter((bill): bill is NessieBillInput => bill !== null),
+    deposits: (input.deposits ?? [])
+      .map(mapDeposit)
+      .filter((deposit): deposit is NessieDepositInput => deposit !== null),
+    transfers: uniqueById(
+      (input.transfers ?? []).map(mapTransfer).filter((transfer): transfer is NessieTransferInput => transfer !== null)
+    ),
     friendCount: input.friendCount,
     now: input.now,
   });
@@ -325,6 +364,43 @@ export function mapBill(raw: unknown): NessieBillInput | null {
   };
 }
 
+export function mapDeposit(raw: unknown): NessieDepositInput | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+  const amount = asNumber(record.amount);
+  const transactionDate = asString(record.transaction_date);
+  const id = asString(record._id) || asString(record.id);
+  const accountId = asString(record.account_id);
+  if (!id || !accountId || amount === null || !transactionDate) return null;
+  return {
+    id,
+    accountId,
+    amount,
+    transactionDate,
+    status: asString(record.status) || undefined,
+    description: asString(record.description) || undefined,
+  };
+}
+
+export function mapTransfer(raw: unknown): NessieTransferInput | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+  const amount = asNumber(record.amount);
+  const transactionDate = asString(record.transaction_date);
+  const id = asString(record._id) || asString(record.id);
+  const payeeId = asString(record.payee_id);
+  if (!id || !payeeId || amount === null || !transactionDate) return null;
+  return {
+    id,
+    payerId: asString(record.payer_id),
+    payeeId,
+    amount,
+    transactionDate,
+    status: asString(record.status) || undefined,
+    description: asString(record.description) || undefined,
+  };
+}
+
 export function toAccountSummary(account: NessieAccountInput): NessieAccountSummary {
   return {
     id: account.id,
@@ -341,27 +417,109 @@ function formatReasoning(input: {
   recurringMonthly: number;
   annualChargesMonthly: number;
   suggestedPerPerson: number;
+  savingsBalance: number;
+  plannedMonthlySavings: number;
 }): string {
   const recurring =
     input.annualChargesMonthly > 0
       ? `recurring ~$${dollars(input.recurringMonthly)}/mo incl. annual charges`
       : `recurring ~$${dollars(input.recurringMonthly)}/mo`;
-  return `Balance $${dollars(input.balance)}, typical spending ~$${dollars(input.typicalMonthlySpend)}/mo, ${recurring}, suggested hangout budget $${dollars(input.suggestedPerPerson)}/person.`;
+  const savings =
+    input.savingsBalance > 0 || input.plannedMonthlySavings > 0
+      ? `, savings $${dollars(input.savingsBalance)} held separately${
+          input.plannedMonthlySavings > 0 ? `, planned savings ~$${dollars(input.plannedMonthlySavings)}/mo` : ''
+        }`
+      : '';
+  return `Balance $${dollars(input.balance)} (Nessie does not update this from purchases or deposits)${savings}, typical spending ~$${dollars(input.typicalMonthlySpend)}/mo, ${recurring}, suggested hangout budget $${dollars(input.suggestedPerPerson)}/person.`;
+}
+
+function isCreditAccount(account: NessieAccountInput): boolean {
+  return account.type.toLowerCase().includes('credit');
+}
+
+function isSavingsAccount(account: NessieAccountInput): boolean {
+  return account.type.toLowerCase().includes('saving');
+}
+
+function isCheckingAccount(account: NessieAccountInput): boolean {
+  const type = account.type.toLowerCase();
+  return type.includes('checking') || type.length === 0;
 }
 
 function spendableBalance(accounts: NessieAccountInput[]): number {
   let liquid = 0;
   for (const account of accounts) {
-    const type = account.type.toLowerCase();
-    if (type.includes('credit')) {
+    if (isCreditAccount(account)) {
       if (account.balance > 0) liquid -= account.balance;
       continue;
     }
-    if (type.includes('checking') || type.includes('savings') || type.length === 0) {
-      liquid += account.balance;
-    }
+    if (isCheckingAccount(account)) liquid += account.balance;
   }
   return liquid;
+}
+
+function savingsBalance(accounts: NessieAccountInput[]): number {
+  return accounts.filter(isSavingsAccount).reduce((sum, account) => sum + account.balance, 0);
+}
+
+function plannedSavings(
+  accounts: NessieAccountInput[],
+  deposits: NessieDepositInput[],
+  transfers: NessieTransferInput[]
+): number {
+  const savingsIds = new Set(accounts.filter(isSavingsAccount).map((account) => account.id));
+  if (savingsIds.size === 0) return 0;
+  const inflows: Array<{ amount: number; transactionDate: string; status?: string }> = [];
+  const seenTransfer = new Set<string>();
+  for (const transfer of transfers) {
+    if (!savingsIds.has(transfer.payeeId) || savingsIds.has(transfer.payerId)) continue;
+    if (seenTransfer.has(transfer.id)) continue;
+    seenTransfer.add(transfer.id);
+    inflows.push(transfer);
+  }
+  for (const deposit of deposits) {
+    if (!savingsIds.has(deposit.accountId)) continue;
+    const duplicate = inflows.some(
+      (inflow) => inflow.transactionDate === deposit.transactionDate && inflow.amount === deposit.amount
+    );
+    if (duplicate) continue;
+    inflows.push(deposit);
+  }
+  return monthlyPlan(inflows);
+}
+
+function monthlyPlan(movements: Array<{ amount: number; transactionDate: string; status?: string }>): number {
+  const byMonth = new Map<string, { amount: number; day: number }>();
+  for (const movement of movements) {
+    if (!isActiveCharge(movement.status) || movement.amount <= 0) continue;
+    const month = movement.transactionDate.slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) continue;
+    const day = parseDay(movement.transactionDate);
+    if (day === null) continue;
+    const current = byMonth.get(month);
+    if (!current) byMonth.set(month, { amount: movement.amount, day });
+    else {
+      current.amount += movement.amount;
+      current.day = Math.min(current.day, day);
+    }
+  }
+  const months = [...byMonth.values()].sort((left, right) => left.day - right.day);
+  if (months.length < 2) return 0;
+  const cadence = classifyGaps(gapsBetween(months.map((month) => month.day)));
+  if (!cadence) return 0;
+  const amount = median(months.map((month) => month.amount));
+  return roundMoney(cadence === 'annual' ? amount / 12 : amount);
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
 }
 
 function typicalMonthlyNonRecurring(

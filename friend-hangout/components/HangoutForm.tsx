@@ -695,6 +695,18 @@ function NessieBudgetNote({
                 'Estimate only. Nessie did not answer, so this cap is not a bank balance.'}
         </p>
       )}
+      {nessie?.source === 'nessie' && (
+        <p className="text-base text-ink">
+          {nessie.estimate.savingsBalance > 0 || nessie.estimate.plannedMonthlySavings > 0
+            ? `Savings $${Math.round(nessie.estimate.savingsBalance)} stays out of the hangout budget${
+                nessie.estimate.plannedMonthlySavings > 0
+                  ? `, with about $${Math.round(nessie.estimate.plannedMonthlySavings)} a month set aside`
+                  : ''
+              }. `
+            : ''}
+          Nessie does not update account balances from purchases or deposits, so this uses the balance field as stored.
+        </p>
+      )}
       {nessie && nessie.customers.length > 1 && !nessie.customerLocked && (
         <label className="block text-base font-semibold text-ink">
           Nessie customer

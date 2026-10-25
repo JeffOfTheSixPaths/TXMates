@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         {
           role: 'system',
           content:
-            'Explain these Nessie budget numbers in plain language for a friend-group hangout. Reply with ONLY JSON: {"explanation":"2-3 sentences","tips":["up to 3 short tips"]}. Do not invent accounts that are not in the numbers.',
+            'Explain these Nessie budget numbers in plain language for a friend-group hangout. Reply with ONLY JSON: {"explanation":"2-3 sentences","tips":["up to 3 short tips"]}. Do not invent accounts that are not in the numbers. balance is checking, with credit-card debt subtracted. savingsBalance is not spendable. plannedMonthlySavings is already set aside. Nessie does not update balances from purchases or deposits.',
         },
         {
           role: 'user',
@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
             discretionary: budget.estimate.discretionary,
             suggestedPerPerson: budget.estimate.suggestedPerPerson,
             friendCount: budget.estimate.friendCount,
+            savingsBalance: budget.estimate.savingsBalance,
+            plannedMonthlySavings: budget.estimate.plannedMonthlySavings,
           }),
         },
       ],

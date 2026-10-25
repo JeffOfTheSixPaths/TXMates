@@ -5,6 +5,18 @@ import { loadNessieBudget } from './nessieServer.ts';
 
 const KEY = 'secret-nessie-key';
 
+function transfer(id: string, transactionDate: string) {
+  return {
+    _id: id,
+    payer_id: 'acc-2',
+    payee_id: 'acc-3',
+    amount: 25,
+    transaction_date: transactionDate,
+    status: 'completed',
+    description: 'To savings',
+  };
+}
+
 describe('loadNessieBudget against a mock API', () => {
   let base = '';
   let server: Server;
@@ -45,6 +57,20 @@ describe('loadNessieBudget against a mock API', () => {
             account_number: '99998888',
             customer_id: 'cust-b',
           },
+          {
+            _id: 'acc-3',
+            type: 'Savings',
+            nickname: 'Rainy',
+            balance: 400,
+            account_number: '44445555',
+            customer_id: 'cust-b',
+          },
+        ];
+      } else if (path === '/accounts/acc-2/transfers' || path === '/accounts/acc-3/transfers') {
+        body = [
+          transfer('xfer-1', '2025-01-05'),
+          transfer('xfer-2', '2025-02-05'),
+          transfer('xfer-3', '2025-03-05'),
         ];
       } else if (path.endsWith('/purchases')) {
         body = [];
@@ -108,7 +134,10 @@ describe('loadNessieBudget against a mock API', () => {
       now: new Date('2025-04-10T00:00:00Z'),
     });
     assert.equal(picked.selectedCustomerId, 'cust-b');
+    assert.equal(picked.selectedAccountId, null);
     assert.equal(picked.estimate.balance, 50);
+    assert.equal(picked.estimate.savingsBalance, 400);
+    assert.equal(picked.estimate.plannedMonthlySavings, 25);
 
     process.env.NESSIE_BASE_URL = 'http://127.0.0.1:9';
     const failed = await loadNessieBudget({ now: new Date('2025-04-10T00:00:00Z') });

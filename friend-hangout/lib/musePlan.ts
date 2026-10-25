@@ -42,7 +42,7 @@ Reply with ONLY JSON:
   "budgetTips": ["up to 3 short tips"]
 }
 Choose up to 3 ids from the candidate list. Respect the budget and the overlap window.
-The nessie object has source "nessie" or "simulated", and figureLabel says which. When source is "nessie", budgetExplanation is a plain-language read of that customer's balances, and you may say what Nessie suggests. When source is "simulated", suggestedPerPerson is an estimate, not a bank figure. Call it an estimate in aiRationale and budgetExplanation. Do not say Nessie suggests it. When nessie is null, leave budgetExplanation empty.`;
+The nessie object has source "nessie" or "simulated", and figureLabel says which. When source is "nessie", budgetExplanation is a plain-language read of that customer's balances, and you may say what Nessie suggests. savingsBalance is held separately and is not spendable. plannedMonthlySavings is already set aside each month. balance is checking with credit-card debt subtracted, and Nessie does not change it when purchases or deposits are recorded. When source is "simulated", suggestedPerPerson is an estimate, not a bank figure. Call it an estimate in aiRationale and budgetExplanation. Do not say Nessie suggests it. When nessie is null, leave budgetExplanation empty.`;
 }
 
 export function museBudgetForPrompt(
@@ -56,6 +56,8 @@ export function museBudgetForPrompt(
     safetyBuffer: number;
     discretionary: number;
     suggestedPerPerson: number;
+    savingsBalance?: number;
+    plannedMonthlySavings?: number;
   } | null
   | undefined
 ) {
@@ -72,6 +74,8 @@ export function museBudgetForPrompt(
     safetyBuffer: nessie.safetyBuffer,
     discretionary: nessie.discretionary,
     suggestedPerPerson: nessie.suggestedPerPerson,
+    savingsBalance: nessie.savingsBalance ?? 0,
+    plannedMonthlySavings: nessie.plannedMonthlySavings ?? 0,
   };
 }
 
@@ -121,12 +125,14 @@ export function budgetCopyCacheKey(
     | 'discretionary'
     | 'suggestedPerPerson'
     | 'friendCount'
+    | 'savingsBalance'
+    | 'plannedMonthlySavings'
   >
 ): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
-        v: 'budget-v1',
+        v: 'budget-v2',
         balance: estimate.balance,
         typicalMonthlySpend: estimate.typicalMonthlySpend,
         recurringMonthly: estimate.recurringMonthly,
@@ -136,6 +142,8 @@ export function budgetCopyCacheKey(
         discretionary: estimate.discretionary,
         suggestedPerPerson: estimate.suggestedPerPerson,
         friendCount: estimate.friendCount,
+        savingsBalance: estimate.savingsBalance,
+        plannedMonthlySavings: estimate.plannedMonthlySavings,
       })
     )
     .digest('hex');
