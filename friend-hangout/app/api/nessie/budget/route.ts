@@ -2,7 +2,8 @@ import { connection } from 'next/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { museComplete } from '@/lib/museClient';
-import { budgetCopyCacheKey, parseBudgetCopy } from '@/lib/musePlan';
+import { ENRICH_REASONING_EFFORT } from '@/lib/museEnrich';
+import { BUDGET_MAX_COMPLETION_TOKENS, budgetCopyCacheKey, parseBudgetCopy } from '@/lib/musePlan';
 import { loadNessieBudget, safeId } from '@/lib/nessieServer';
 
 export async function GET(req: NextRequest) {
@@ -21,7 +22,8 @@ export async function GET(req: NextRequest) {
       purpose: 'budget',
       cacheKey: budgetCopyCacheKey(budget.estimate),
       temperature: 0.3,
-      maxTokens: 700,
+      maxTokens: BUDGET_MAX_COMPLETION_TOKENS,
+      reasoningEffort: ENRICH_REASONING_EFFORT,
       messages: [
         {
           role: 'system',
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
         },
       ],
     });
-    const copy = result.content ? parseBudgetCopy(result.content) : null;
+    const copy = result.content && !result.truncated ? parseBudgetCopy(result.content) : null;
     if (copy) {
       budget.estimate.reasoning = copy.explanation;
       budget.estimate.museTips = copy.tips;

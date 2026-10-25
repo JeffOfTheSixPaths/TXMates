@@ -3,9 +3,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, describe, it } from 'node:test';
 import { musePlanCacheKey } from './museCache.ts';
 import { museComplete } from './museClient.ts';
-import { parseMuseEnrichments } from './museEnrich.ts';
-import { heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseBudgetCopy, parseMusePlan, uniquePlanCandidates } from './musePlan.ts';
-import { museCallsToday, museMaxCallsPerDay, recordMuseCall, tokenUsageFromApi } from './museUsage.ts';
+import { ENRICH_REASONING_EFFORT, parseMuseEnrichments } from './museEnrich.ts';
+import { BUDGET_MAX_COMPLETION_TOKENS, heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseBudgetCopy, parseMusePlan, PLAN_MAX_COMPLETION_TOKENS, uniquePlanCandidates } from './musePlan.ts';
+import { museCallsToday, museMaxCallsPerDay, readMuseContentCache, recordMuseCall, tokenUsageFromApi } from './museUsage.ts';
 
 describe('Muse usage guard', () => {
   const previousKey = process.env.MUSE_API_KEY;
@@ -118,6 +118,42 @@ describe('Muse usage guard', () => {
     });
     assert.equal(again.limited, false);
     assert.equal(bodies.length, 2);
+    db.close();
+  });
+
+  it('gives plan and budget room to finish and does not cache a cut-off reply', async () => {
+    assert.equal(PLAN_MAX_COMPLETION_TOKENS, 4000);
+    assert.equal(BUDGET_MAX_COMPLETION_TOKENS, 1500);
+    assert.equal(ENRICH_REASONING_EFFORT, 'low');
+    process.env.MUSE_API_KEY = 'test-key';
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T16:00:00.000Z');
+    let body: Record<string, unknown> | null = null;
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'length', message: { content: '{"explanation":"cut' } }],
+          usage: { completion_tokens: 4000 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+    const result = await museComplete(db, {
+      purpose: 'plan',
+      cacheKey: 'plan-cut',
+      maxTokens: PLAN_MAX_COMPLETION_TOKENS,
+      reasoningEffort: ENRICH_REASONING_EFFORT,
+      messages: [{ role: 'user', content: 'plan' }],
+      now,
+      fetchImpl,
+    });
+    assert.equal(result.truncated, true);
+    assert.equal(result.cached, false);
+    assert.equal(body?.max_completion_tokens, 4000);
+    assert.equal(body?.reasoning_effort, 'low');
+    assert.equal('max_tokens' in (body || {}), false);
+    assert.equal(readMuseContentCache(db, 'plan-cut', now), null);
     db.close();
   });
 

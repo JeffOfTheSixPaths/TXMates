@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 import type { Activity, HangoutPreferences } from '@/types';
 import type { HangoutBudgetEstimate } from './nessieBudget';
 
+export const PLAN_MAX_COMPLETION_TOKENS = 4000;
+export const BUDGET_MAX_COMPLETION_TOKENS = 1500;
+
 export type MusePick = { id: string; whyThisFits: string };
 
 export type MusePlanCopy = {

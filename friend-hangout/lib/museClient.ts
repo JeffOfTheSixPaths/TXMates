@@ -13,6 +13,7 @@ export type MuseCompleteResult = {
   content: string | null;
   cached: boolean;
   limited: boolean;
+  truncated: boolean;
 };
 
 type Message = { role: 'system' | 'user'; content: string };
@@ -34,11 +35,11 @@ export async function museComplete(
 ): Promise<MuseCompleteResult> {
   const now = input.now ?? new Date();
   const cached = readMuseContentCache(db, input.cacheKey, now);
-  if (cached) return { content: cached, cached: true, limited: false };
+  if (cached) return { content: cached, cached: true, limited: false, truncated: false };
 
   const key = process.env.MUSE_API_KEY?.trim();
-  if (!key) return { content: null, cached: false, limited: false };
-  if (!museCallAllowed(db, now)) return { content: null, cached: false, limited: true };
+  if (!key) return { content: null, cached: false, limited: false, truncated: false };
+  if (!museCallAllowed(db, now)) return { content: null, cached: false, limited: true, truncated: false };
 
   const base = (process.env.MUSE_BASE_URL || 'https://api.meta.ai/v1').replace(/\/$/, '');
   const model = process.env.MUSE_MODEL || 'muse-spark-1.3';
@@ -66,10 +67,10 @@ export async function museComplete(
       usage?: unknown;
     } | null;
     const usage = tokenUsageFromApi(payload);
-    if (!response.ok) return { content: null, cached: false, limited: false };
+    if (!response.ok) return { content: null, cached: false, limited: false, truncated: false };
     if (!payload) {
       recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', usage, now });
-      return { content: null, cached: false, limited: false };
+      return { content: null, cached: false, limited: false, truncated: false };
     }
     const choice = payload.choices?.[0];
     const content = choice?.message?.content?.trim() || '';
@@ -83,7 +84,7 @@ export async function museComplete(
       usage,
       now,
     });
-    if (!cacheable) return { content: content || null, cached: false, limited: false };
+    if (!cacheable) return { content: content || null, cached: false, limited: false, truncated };
     writeMuseContentCache(db, {
       cacheKey: input.cacheKey,
       purpose: input.purpose,
@@ -91,10 +92,10 @@ export async function museComplete(
       now,
       ttlMs: input.ttlMs ?? activityPolicy().museCacheTtlMs,
     });
-    return { content, cached: false, limited: false };
+    return { content, cached: false, limited: false, truncated: false };
   } catch {
     recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', now });
-    return { content: null, cached: false, limited: false };
+    return { content: null, cached: false, limited: false, truncated: false };
   } finally {
     clearTimeout(timeout);
   }

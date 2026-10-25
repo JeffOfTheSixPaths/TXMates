@@ -5,7 +5,8 @@ import { getDb } from '@/lib/db';
 import { activityPolicy } from '@/lib/activityPolicy';
 import { musePlanCacheKey, readMuseCache, writeMuseCache } from '@/lib/museCache';
 import { museComplete } from '@/lib/museClient';
-import { heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseMusePlan, uniquePlanCandidates } from '@/lib/musePlan';
+import { ENRICH_REASONING_EFFORT } from '@/lib/museEnrich';
+import { heuristicWhy, museBudgetForPrompt, musePlanSystemPrompt, parseMusePlan, PLAN_MAX_COMPLETION_TOKENS, uniquePlanCandidates } from '@/lib/musePlan';
 import { calculateAvailabilityOverlap } from '@/lib/planner';
 import type { HangoutBudgetEstimate } from '@/lib/nessieBudget';
 
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
       purpose: 'plan',
       cacheKey: `plan:${cacheKey}`,
       temperature: 0.4,
-      maxTokens: 1800,
+      maxTokens: PLAN_MAX_COMPLETION_TOKENS,
+      reasoningEffort: ENRICH_REASONING_EFFORT,
       now,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -110,8 +112,11 @@ export async function POST(req: NextRequest) {
         notice: 'Muse daily limit reached. Showing the built-in picks.',
       });
     }
-    if (!result.content) {
-      return NextResponse.json({ isLive: false, error: 'Muse did not return a plan' });
+    if (result.truncated || !result.content) {
+      return NextResponse.json({
+        isLive: false,
+        error: result.truncated ? 'Muse plan was cut off' : 'Muse did not return a plan',
+      });
     }
 
     const parsed = parseMusePlan(result.content, new Set(candidates.map((activity) => activity.id)));
