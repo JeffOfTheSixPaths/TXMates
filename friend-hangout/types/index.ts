@@ -87,6 +87,7 @@ export interface HangoutPlan {
     savingsPerPerson: number;
     financialHealthScore: number; // 1 - 10
     budgetTip: string;
+    source: 'nessie' | 'simulated';
   };
   isLiveAiGenerated?: boolean;
   aiModelUsed?: string;

@@ -3,6 +3,15 @@ import { Activity, ActivityCategory } from '@/types';
 import { MOCK_ACTIVITIES } from '@/lib/mockData';
 
 const OPENSERP_BASE_URL = process.env.OPENSERP_URL || 'http://127.0.0.1:7000';
+const DEFAULT_OPENSERP_TIMEOUT_MS = 8000;
+const MAX_OPENSERP_TIMEOUT_MS = 30000;
+
+function openSerpTimeoutMs(): number {
+  const raw = process.env.OPENSERP_TIMEOUT_MS;
+  const parsed = raw ? Number(raw) : DEFAULT_OPENSERP_TIMEOUT_MS;
+  if (!Number.isFinite(parsed) || parsed < 1000) return DEFAULT_OPENSERP_TIMEOUT_MS;
+  return Math.min(Math.round(parsed), MAX_OPENSERP_TIMEOUT_MS);
+}
 
 interface OpenSerpRawResult {
   id?: string;
@@ -90,19 +99,25 @@ export async function GET(req: NextRequest) {
     .filter(Boolean)
     .join(' ');
 
+  const timeoutMs = openSerpTimeoutMs();
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2800); // 2.8s fast timeout
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const openserpUrl = `${OPENSERP_BASE_URL}/mega/search?engines=duckduckgo,bing,google&text=${encodeURIComponent(
       searchQuery
     )}&limit=12&mode=any`;
 
-    const res = await fetch(openserpUrl, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-    clearTimeout(timeout);
+    let res: Response;
+    try {
+      res = await fetch(openserpUrl, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (res.ok) {
       const data = (await res.json()) as OpenSerpResponse;
@@ -184,7 +199,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     source: 'fallback',
     isLive: false,
-    notice: 'OpenSERP local service offline at 127.0.0.1:7000. Serving verified Austin demo dataset with source transparency.',
+    notice: `OpenSERP did not answer at ${OPENSERP_BASE_URL} within ${timeoutMs}ms. Serving the curated Austin demo catalog.`,
     queryUsed: searchQuery,
     activities: fallback,
   });

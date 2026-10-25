@@ -300,7 +300,7 @@ export const INITIAL_FRIENDS: Friend[] = [
   {
     id: 'f-1',
     name: 'Alex (Organizer)',
-    avatarColor: 'bg-teal-600 text-white',
+    avatarColor: 'bg-cola text-paper',
     availabilitySlots: [
       { id: 's-1', startTime: '13:00', endTime: '21:00', label: '1:00 PM - 9:00 PM' },
     ],
@@ -310,7 +310,7 @@ export const INITIAL_FRIENDS: Friend[] = [
   {
     id: 'f-2',
     name: 'Sam M.',
-    avatarColor: 'bg-sky-600 text-white',
+    avatarColor: 'bg-tomato text-white',
     availabilitySlots: [
       { id: 's-2', startTime: '14:30', endTime: '20:30', label: '2:30 PM - 8:30 PM' },
     ],
@@ -320,7 +320,7 @@ export const INITIAL_FRIENDS: Friend[] = [
   {
     id: 'f-3',
     name: 'Jordan K.',
-    avatarColor: 'bg-amber-600 text-white',
+    avatarColor: 'bg-leaf text-white',
     availabilitySlots: [
       { id: 's-3', startTime: '15:00', endTime: '22:00', label: '3:00 PM - 10:00 PM' },
     ],
@@ -330,7 +330,7 @@ export const INITIAL_FRIENDS: Friend[] = [
   {
     id: 'f-4',
     name: 'Taylor R.',
-    avatarColor: 'bg-emerald-600 text-white',
+    avatarColor: 'bg-ink text-sun',
     availabilitySlots: [
       { id: 's-4', startTime: '14:00', endTime: '21:30', label: '2:00 PM - 9:30 PM' },
     ],

@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Familjen_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const familjen = Familjen_Grotesk({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-familjen",
 });
 
 export const metadata: Metadata = {
-  title: "TXMates - Social Hangout Planner for Friends in Austin, TX",
+  title: "TXMates — plan a hangout your friends will make",
   description:
-    "TXMates is a desktop-first social planning app that brings friends together using AI itinerary generation, shared availability windows, Capital One Nessie budgeting, and authentic Austin activity discovery.",
+    "TXMates turns shared free time, a per-person budget, and Austin spots into a short hangout plan. Friends mark their hours on a link, then the group locks an itinerary.",
 };
 
 export default function RootLayout({
@@ -24,11 +20,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-[#FAF7F2] text-[#0F172A] selection:bg-teal-500 selection:text-white">
+    <html lang="en" className={`${familjen.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-pine text-ink">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-sun focus:px-3 focus:py-2 focus:text-ink"
+        >
+          Skip to the plan
+        </a>
         {children}
       </body>
     </html>

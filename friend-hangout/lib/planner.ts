@@ -8,6 +8,7 @@ import {
   Friend,
 } from '@/types';
 import { MOCK_ACTIVITIES } from './mockData';
+import type { HangoutBudgetEstimate } from './nessieBudget';
 
 /**
  * Calculates common availability overlap among friends
@@ -193,7 +194,8 @@ function createItinerary(
  */
 export function generatePlan(
   preferences: HangoutPreferences,
-  viewType: PlanningViewType
+  viewType: PlanningViewType,
+  nessie?: Pick<HangoutBudgetEstimate, 'source' | 'reasoning'> | null
 ): HangoutPlan {
   const { maxBudgetPerPerson, selectedInterests, friendCount } = preferences;
 
@@ -212,7 +214,7 @@ export function generatePlan(
 
   if (viewType === 'cheapest') {
     title = 'Wallet-Friendly Austin Adventure';
-    subtitle = 'Optimized for maximum fun at minimal per-person spend, backed by simulated Nessie savings.';
+    subtitle = 'The lowest prices that still fit the cap.';
     
     // Sort strictly by cost ascending, giving a small preference to interest match
     candidateActivities.sort((a, b) => {
@@ -304,19 +306,29 @@ export function generatePlan(
   let financialHealthScore = 8;
   let budgetTip = '';
 
+  const planCost = `This plan is $${totalCostPerPerson}/person.`;
   if (totalCostPerPerson < maxBudgetPerPerson * 0.75) {
     budgetStatus = 'under';
     financialHealthScore = 10;
-    budgetTip = `Simulated Nessie Insight: Excellent financial efficiency! Each friend saves ~$${savingsPerPerson.toFixed(0)}, leaving a comfortable buffer for rideshares or spontaneous treats.`;
+    budgetTip =
+      nessie?.source === 'nessie'
+        ? `${nessie.reasoning} ${planCost}`
+        : `Estimate only: about $${savingsPerPerson.toFixed(0)} a person is left under the cap.`;
   } else if (totalCostPerPerson <= maxBudgetPerPerson) {
     budgetStatus = 'on-target';
     financialHealthScore = 9;
-    budgetTip = `Simulated Nessie Insight: Perfectly balanced. At $${totalCostPerPerson}/person, you’re utilizing ${budgetUtilizationPercentage}% of the target budget with zero overdraft risk.`;
+    budgetTip =
+      nessie?.source === 'nessie'
+        ? `${nessie.reasoning} ${planCost}`
+        : `Estimate only: $${totalCostPerPerson}/person uses ${budgetUtilizationPercentage}% of the cap.`;
   } else {
     budgetStatus = 'over';
     financialHealthScore = 6;
     const overage = totalCostPerPerson - maxBudgetPerPerson;
-    budgetTip = `Simulated Nessie Alert: This combination exceeds target budget by $${overage.toFixed(0)}/person. Consider swapping an activity or opting for happy-hour pricing.`;
+    budgetTip =
+      nessie?.source === 'nessie'
+        ? `${nessie.reasoning} ${planCost} That is $${overage.toFixed(0)} over the cap.`
+        : `Estimate only: this plan is $${overage.toFixed(0)} a person over the cap.`;
   }
 
   // Calculate overall match score
@@ -345,6 +357,7 @@ export function generatePlan(
       savingsPerPerson,
       financialHealthScore,
       budgetTip,
+      source: nessie?.source === 'nessie' ? 'nessie' : 'simulated',
     },
   };
 }

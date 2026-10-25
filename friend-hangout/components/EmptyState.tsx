@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { SearchX, RotateCcw } from 'lucide-react';
+import React from "react";
+import { RotateCcw, SearchX } from "lucide-react";
 
 interface EmptyStateProps {
   title?: string;
@@ -11,25 +11,23 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  title = 'No activities match your filters',
-  message = 'Try relaxing your budget filter, clearing search keywords, or selecting more activity categories.',
+  title = "No activities match your filters",
+  message = "Widen the budget, clear the search, or pick another category.",
   onReset,
-  actionText = 'Reset Search Filters',
+  actionText = "Reset filters",
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#E8E2D8] bg-white/70 py-12 px-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-        <SearchX className="h-6 w-6" />
-      </div>
-      <h3 className="mt-3 text-sm font-bold text-slate-800">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs text-slate-500">{message}</p>
+    <div className="border border-dashed border-seam px-6 py-14 text-center">
+      <SearchX className="mx-auto h-7 w-7 text-ink-soft" aria-hidden />
+      <h3 className="mt-3 text-xl font-semibold text-ink">{title}</h3>
+      <p className="mx-auto mt-2 max-w-prose text-base text-ink-soft">{message}</p>
       {onReset && (
         <button
           type="button"
           onClick={onReset}
-          className="mt-4 flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
+          className="mt-5 inline-flex min-h-11 items-center gap-2 border border-seam bg-sheet px-4 text-base font-semibold text-ink"
         >
-          <RotateCcw className="h-3.5 w-3.5 text-teal-600" />
+          <RotateCcw className="h-4 w-4" aria-hidden />
           {actionText}
         </button>
       )}
