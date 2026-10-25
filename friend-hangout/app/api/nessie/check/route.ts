@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const NESSIE_API_KEY = process.env.NESSIE_API_KEY;
 const NESSIE_BASE_URL = process.env.NESSIE_BASE_URL || 'http://api.nessieisreal.com';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   if (!NESSIE_API_KEY) {
     return NextResponse.json({
       isLive: false,

@@ -15,6 +15,8 @@ import {
   listDiscoveryQueries,
   listPlacesDueForRecheck,
 } from '../lib/activityStore';
+import { eventsDirectory, pruneEventDirectory } from '../lib/eventCatalog';
+import { collectIntoEventDirectory } from '../lib/eventCollect';
 import { DISCOVERY_CATEGORIES, discoveryRefreshSettled, recheckPlace, refreshDiscoveryQuery } from '../lib/discoverySearch';
 import { parseEnvFile } from '../lib/nessieSeed';
 
@@ -84,9 +86,27 @@ async function main() {
   const cleanup = cleanupActivities(db, now, policy);
   db.close();
 
+  let collected = '';
+  try {
+    collected = await collectIntoEventDirectory({ apiKey: process.env.TICKETMASTER_API_KEY, now });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Ticketmaster collection failed';
+    collected = `Event collection failed: ${message}`;
+  }
+  const pruned = pruneEventDirectory(eventsDirectory(), now);
+
   console.log(`Refreshed ${refreshed} searches (${failed} failed, ${skipped} still fresh).`);
   console.log(`Rechecked ${places.length} places: kept ${kept}, removed ${removed}, skipped ${recheckSkipped}.`);
   console.log(`Cleanup removed ${cleanup.deletedEvents} expired events and ${cleanup.removedPlaces} stale places.`);
+  console.log(collected);
+  if (pruned.removed.length === 0) {
+    console.log(`Event folder: no past events. Today in America/Chicago is ${pruned.today}. Kept ${pruned.kept}.`);
+  } else {
+    console.log(`Event folder removed ${pruned.removed.length} past events (America/Chicago ${pruned.today}).`);
+    for (const event of pruned.removed) {
+      console.log(`- ${event.bucket}/${event.id}  ${event.name}  ${event.endDate || event.startDate}`);
+    }
+  }
 }
 
 main().catch((error: unknown) => {

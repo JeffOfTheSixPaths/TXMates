@@ -16,6 +16,7 @@ export interface Activity {
   location: string;
   neighborhood: string;
   estimatedCostPerPerson: number;
+  priceListed?: boolean;
   durationMinutes: number;
   description: string;
   highlights: string[];
@@ -33,7 +34,7 @@ export interface Activity {
   endDate?: string | null;
   firstSeen?: string;
   lastSeen?: string;
-  resultFreshness?: 'live' | 'saved';
+  resultFreshness?: 'live' | 'saved' | 'catalog';
   museEnriched?: boolean;
   venue?: string;
   address?: string;

@@ -33,8 +33,9 @@ export function uniquePlanCandidates<T extends { id?: string; name?: string }>(a
   return unique;
 }
 
-export function musePlanSystemPrompt(): string {
-  return `You are Meta Muse Spark planning a friend hangout in Austin.
+export function musePlanSystemPrompt(location = 'Austin, TX'): string {
+  const city = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
+  return `You are Meta Muse Spark planning a friend hangout in ${city}.
 Reply with ONLY JSON:
 {
   "picks": [{"id":"activity id","whyThisFits":"one short sentence"}],
@@ -184,8 +185,16 @@ export function parseBudgetCopy(content: string): BudgetCopy | null {
   return { explanation, tips: stringList(record.tips, 3, 180) };
 }
 
-export function heuristicWhy(activity: { category: string; estimatedCostPerPerson: number }, interests: string[], cap: number): string {
-  const interest = interests.includes(activity.category) ? 'It matches an interest the group turned on' : 'It is an Austin stop the group can share';
+export function heuristicWhy(
+  activity: { category: string; estimatedCostPerPerson: number },
+  interests: string[],
+  cap: number,
+  location = 'Austin, TX'
+): string {
+  const city = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
+  const interest = interests.includes(activity.category)
+    ? 'It matches an interest the group turned on'
+    : `It is a ${city} stop the group can share`;
   const money = activity.estimatedCostPerPerson <= cap ? `and stays within the $${cap} cap` : `though it runs above the $${cap} cap`;
   return `${interest} ${money}.`;
 }
@@ -195,6 +204,15 @@ function parseJson(content: string): unknown {
   try {
     return JSON.parse(cleaned);
   } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
     return null;
   }
 }

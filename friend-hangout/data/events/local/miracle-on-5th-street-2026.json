@@ -1,0 +1,26 @@
+{
+  "id": "miracle-on-5th-street-2026",
+  "name": "Miracle on 5th Street",
+  "bucket": "local",
+  "category": "nightlife",
+  "categoryLabel": "Nightlife & Drinks",
+  "location": "Austin, TX",
+  "neighborhood": "The Eleanor",
+  "venue": "The Eleanor",
+  "address": "",
+  "startDate": "2026-11-12",
+  "endDate": "2026-12-30",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists Miracle on 5th Street at The Eleanor for November 12–December 30, 2026, a Christmas-themed pop-up cocktail bar.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Drinks"
+  ],
+  "highlights": [
+    "The Eleanor"
+  ]
+}

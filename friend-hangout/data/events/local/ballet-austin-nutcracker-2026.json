@@ -1,0 +1,27 @@
+{
+  "id": "ballet-austin-nutcracker-2026",
+  "name": "Ballet Austin's The Nutcracker",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Long Center",
+  "venue": "Dell Hall, Long Center",
+  "address": "701 W. Riverside Dr., Austin, TX",
+  "startDate": "2026-12-04",
+  "endDate": "2026-12-23",
+  "sourceUrl": "https://balletaustin.org/performances/the-nutcracker/",
+  "description": "Ballet Austin lists 16 performances of The Nutcracker from December 4–23, 2026 at Dell Hall in the Long Center, with the Austin Symphony Orchestra. The run is not every day; the source page lists the showtimes. Ballet Austin says the production runs about 2 hours.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": false,
+  "tags": [
+    "Local",
+    "Dance",
+    "Holiday"
+  ],
+  "highlights": [
+    "Long Center",
+    "Austin Symphony Orchestra"
+  ]
+}

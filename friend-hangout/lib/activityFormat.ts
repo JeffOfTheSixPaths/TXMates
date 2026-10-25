@@ -12,6 +12,16 @@ export function formatAge(iso: string | undefined | null, now = Date.now()): str
   return `${Math.round(hours / 24)} d ago`;
 }
 
+export function formatActivityPrice(
+  activity: { estimatedCostPerPerson: number; priceListed?: boolean },
+  style: 'tilde' | 'person' = 'tilde'
+): string {
+  if (activity.priceListed === false) return 'Price not listed';
+  if (activity.estimatedCostPerPerson === 0) return 'Free';
+  if (style === 'person') return `$${activity.estimatedCostPerPerson} a person`;
+  return `~$${activity.estimatedCostPerPerson}`;
+}
+
 export function formatEventSpan(start?: string | null, end?: string | null): string | null {
   const from = formatCivil(start);
   const to = formatCivil(end);

@@ -1,0 +1,27 @@
+{
+  "id": "austin-trail-of-lights-2026",
+  "name": "Austin Trail of Lights",
+  "bucket": "local",
+  "category": "outdoors",
+  "categoryLabel": "Outdoors & Springs",
+  "location": "Austin, TX",
+  "neighborhood": "Zilker Park",
+  "venue": "Zilker Park",
+  "address": "2100 Barton Springs Rd, Austin, TX 78704",
+  "startDate": "2026-12-10",
+  "endDate": "2026-12-23",
+  "sourceUrl": "https://austintrailoflights.org/event-faqs/-2026-dates-time-gate-ticket-information-and-location",
+  "description": "The Austin Trail of Lights site lists December 10–23, 2026, 7:00–10:00 p.m., at Zilker Park, 2100 Barton Springs Rd. General admission is free on December 10, 11, and 13–17. On December 12 and 18–23 it is $8 for ages 12 and older, and free for children under 12. ZIP and Platinum passes are separate tickets.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 180,
+  "durationIsEstimate": false,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Lights"
+  ],
+  "highlights": [
+    "Zilker Park",
+    "7:00–10:00 p.m."
+  ]
+}

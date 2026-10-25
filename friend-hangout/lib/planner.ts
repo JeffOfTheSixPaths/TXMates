@@ -7,7 +7,7 @@ import type {
   PlanningViewType,
   Friend,
 } from '@/types';
-import { MOCK_ACTIVITIES } from './mockData';
+import { getActivitiesForLocation } from './mockData';
 import type { HangoutBudgetEstimate } from './nessieBudget';
 
 /**
@@ -202,7 +202,9 @@ export function generatePlan(
 ): HangoutPlan {
   const { maxBudgetPerPerson, selectedInterests, friendCount } = preferences;
 
-  const candidateActivities = [...MOCK_ACTIVITIES];
+  const location = preferences.location || 'Austin, TX';
+  const cleanCity = location.replace(/\(.*?\)/g, '').split(',')[0]?.trim() || 'Austin';
+  const candidateActivities = [...getActivitiesForLocation(preferences.location)];
 
   // Helper score for interest match
   const getInterestScore = (act: Activity): number => {
@@ -216,7 +218,7 @@ export function generatePlan(
   let aiRationale = '';
 
   if (viewType === 'cheapest') {
-    title = 'Wallet-Friendly Austin Adventure';
+    title = `Wallet-Friendly ${cleanCity} Adventure`;
     subtitle = 'The lowest prices that still fit the cap.';
     
     // Sort strictly by cost ascending, giving a small preference to interest match
@@ -228,7 +230,7 @@ export function generatePlan(
 
     // Pick 3 diverse cheap activities
     chosenActivities = candidateActivities.slice(0, 3);
-    aiRationale = `Meta Muse Spark curated 3 ultra-affordable Austin favorites with a blended average cost well under $${maxBudgetPerPerson}/person. Keeps your crew energized without financial stress.`;
+    aiRationale = `Meta Muse Spark curated 3 ultra-affordable ${cleanCity} favorites with a blended average cost well under $${maxBudgetPerPerson}/person. Keeps your crew energized without financial stress.`;
   } else if (viewType === 'interests') {
     title = 'Interests & Passion Deep-Dive';
     subtitle = 'Tailored strictly around your group’s chosen categories and vibe preferences.';
@@ -250,7 +252,7 @@ export function generatePlan(
     aiRationale = `Meta Muse Spark prioritized top-rated venues matching your selected interests (${selectedInterests.join(', ') || 'all categories'}). Highly rated spots designed to guarantee maximum engagement.`;
   } else {
     // 'overall' - Best balanced match
-    title = 'The Prime Austin Match';
+    title = `The Prime ${cleanCity} Match`;
     subtitle = 'The ideal equilibrium of your group’s interests, budget comfort, and schedule flow.';
 
     // Composite scoring: Interest (40%) + Budget Fit (30%) + Rating (30%)
@@ -288,7 +290,7 @@ export function generatePlan(
       chosenActivities = selected;
     }
 
-    aiRationale = `Meta Muse Spark engineered this itinerary for balanced group harmony. Combines relaxing group activities with iconic Austin flavor, timed perfectly with your group's availability window.`;
+    aiRationale = `Meta Muse Spark engineered this itinerary for balanced group harmony. Combines relaxing group activities with iconic ${cleanCity} flavor, timed perfectly with your group's availability window.`;
   }
 
   // Cost calculation

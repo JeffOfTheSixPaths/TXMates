@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, GripVertical, MapPin, Check } from "lucide-react";
 import type { Activity, Friend, HangoutPreferences, ItineraryItem } from "@/types";
-import { formatAge, formatEventSpan } from "@/lib/activityFormat";
+import { formatActivityPrice, formatAge, formatEventSpan } from "@/lib/activityFormat";
 import { availabilityStrong, coverageCount, parseSlotLabel } from "@/lib/availabilityHeat";
 import { indexFromPointer, reorderItinerary } from "@/lib/itineraryEdit";
 import { heatStyle } from "@/components/OverlapRunner";
@@ -178,7 +178,9 @@ export function ItinerarySchedule({
                           ? "Live"
                           : item.activity.resultFreshness === "saved"
                             ? `Saved, last seen ${formatAge(item.activity.lastSeen) || "earlier"}`
-                            : "Demo"}
+                            : item.activity.resultFreshness === "catalog"
+                              ? "Austin calendar"
+                              : "Demo"}
                         {item.activity.kind === "event"
                           ? ` · Event${formatEventSpan(item.activity.startDate, item.activity.endDate) ? `, ${formatEventSpan(item.activity.startDate, item.activity.endDate)}` : ", date not listed"}`
                           : item.activity.kind === "place"
@@ -194,7 +196,7 @@ export function ItinerarySchedule({
                     </p>
                     <p className="mt-2 max-w-prose text-base text-ink">{item.activity.description}</p>
                     <p className="mt-2 text-sm tabular-nums text-ink">
-                      ${item.activity.estimatedCostPerPerson} a person · {item.activity.durationMinutes} min · {item.activity.categoryLabel}
+                      {formatActivityPrice(item.activity, "person")} · {item.activity.durationMinutes} min · {item.activity.categoryLabel}
                     </p>
                     {item.activity.highlights.length > 0 && (
                       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-soft">

@@ -1,0 +1,26 @@
+{
+  "id": "mozarts-festival-of-lights-2026",
+  "name": "Mozart's Festival of Lights",
+  "bucket": "local",
+  "category": "chill",
+  "categoryLabel": "Cafe & Social Chill",
+  "location": "Austin, TX",
+  "neighborhood": "Mozart's Coffee Roasters",
+  "venue": "Mozart's Coffee Roasters",
+  "address": "",
+  "startDate": "2026-11-21",
+  "endDate": "2027-01-03",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists Mozart's Festival of Lights for November 21, 2026 through January 3, 2027 at Mozart's Coffee Roasters, with a lights display set to music.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 90,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Lights"
+  ],
+  "highlights": [
+    "Mozart's Coffee Roasters"
+  ]
+}

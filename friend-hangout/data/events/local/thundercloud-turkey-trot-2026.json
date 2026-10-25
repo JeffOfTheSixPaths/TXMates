@@ -1,0 +1,26 @@
+{
+  "id": "thundercloud-turkey-trot-2026",
+  "name": "ThunderCloud Subs Turkey Trot",
+  "bucket": "local",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Long Center",
+  "venue": "The Long Center",
+  "address": "",
+  "startDate": "2026-11-26",
+  "endDate": "2026-11-26",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists the ThunderCloud Subs Turkey Trot on November 26, 2026 at the Long Center, with a 5-mile run and a 1-mile walk.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 90,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Run"
+  ],
+  "highlights": [
+    "5-mile run",
+    "1-mile walk"
+  ]
+}

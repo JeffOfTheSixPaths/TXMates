@@ -1,0 +1,27 @@
+{
+  "id": "austin-fc-vs-real-salt-lake-2026",
+  "name": "Austin FC vs. Real Salt Lake",
+  "bucket": "shows",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Q2 Stadium",
+  "venue": "Q2 Stadium",
+  "address": "10414 McKalla Pl, Austin, TX 78758",
+  "startDate": "2026-10-28",
+  "endDate": "2026-10-28",
+  "sourceUrl": "https://www.austintexas.gov/ace/events/q2-stadium-austin-fc-vs-real-salt-lake",
+  "description": "The City of Austin event listing for Q2 Stadium shows Austin FC vs. Real Salt Lake on October 28, 2026, 7:30–10:00 p.m., at 10414 McKalla Pl. Austin FC also has a match page at https://www.austinfc.com/competitions/mls-regular-season/2026/matches/atxvsrsl-10-28-2026/.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 150,
+  "durationIsEstimate": false,
+  "tags": [
+    "Shows",
+    "Soccer",
+    "Austin FC"
+  ],
+  "highlights": [
+    "Q2 Stadium",
+    "7:30 p.m."
+  ]
+}

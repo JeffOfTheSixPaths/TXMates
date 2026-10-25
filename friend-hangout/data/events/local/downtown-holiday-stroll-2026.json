@@ -1,0 +1,27 @@
+{
+  "id": "downtown-holiday-stroll-2026",
+  "name": "Downtown Holiday Stroll",
+  "bucket": "local",
+  "category": "chill",
+  "categoryLabel": "Cafe & Social Chill",
+  "location": "Austin, TX",
+  "neighborhood": "Congress Avenue",
+  "venue": "Congress Avenue",
+  "address": "Congress Avenue between Ninth Street and 11th Street, Austin, TX",
+  "startDate": "2026-12-05",
+  "endDate": "2026-12-05",
+  "sourceUrl": "https://www.austintexas.org/events/december-and-january/",
+  "description": "Visit Austin lists the Downtown Holiday Stroll on December 5, 2026 along Congress Avenue between Ninth and 11th Street, and describes it as free and family-friendly.",
+  "estimatedCostPerPerson": 0,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Free"
+  ],
+  "highlights": [
+    "Free admission",
+    "Congress Avenue"
+  ]
+}

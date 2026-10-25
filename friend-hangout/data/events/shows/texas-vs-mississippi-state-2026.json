@@ -1,0 +1,27 @@
+{
+  "id": "texas-vs-mississippi-state-2026",
+  "name": "Texas Longhorns vs. Mississippi State",
+  "bucket": "shows",
+  "category": "sports",
+  "categoryLabel": "Sports & Active",
+  "location": "Austin, TX",
+  "neighborhood": "Darrell K Royal–Texas Memorial Stadium",
+  "venue": "Darrell K Royal–Texas Memorial Stadium",
+  "address": "",
+  "startDate": "2026-10-31",
+  "endDate": "2026-10-31",
+  "sourceUrl": "https://texaslonghorns.com/sports/football/schedule/2026",
+  "description": "The University of Texas 2026 football schedule lists Mississippi State at Darrell K Royal–Texas Memorial Stadium in Austin on Saturday, October 31, 2026, at 6:30 p.m. CT, on ABC or ESPN.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 210,
+  "durationIsEstimate": true,
+  "tags": [
+    "Shows",
+    "Football",
+    "Texas Longhorns"
+  ],
+  "highlights": [
+    "6:30 p.m. CT",
+    "Austin"
+  ]
+}

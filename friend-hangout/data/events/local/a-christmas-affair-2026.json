@@ -1,0 +1,26 @@
+{
+  "id": "a-christmas-affair-2026",
+  "name": "A Christmas Affair",
+  "bucket": "local",
+  "category": "arts",
+  "categoryLabel": "Arts & Culture",
+  "location": "Austin, TX",
+  "neighborhood": "Palmer Events Center",
+  "venue": "Palmer Events Center",
+  "address": "",
+  "startDate": "2026-11-18",
+  "endDate": "2026-11-22",
+  "sourceUrl": "https://www.austintexas.org/events/october-and-november/",
+  "description": "Visit Austin lists A Christmas Affair for November 18–22, 2026 at the Palmer Events Center, a holiday market benefiting the Junior League of Austin.",
+  "estimatedCostPerPerson": null,
+  "durationMinutes": 120,
+  "durationIsEstimate": true,
+  "tags": [
+    "Local",
+    "Holiday",
+    "Market"
+  ],
+  "highlights": [
+    "Palmer Events Center"
+  ]
+}

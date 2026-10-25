@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs --test lib/*.test.ts",
     "nessie:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs scripts/nessie-seed.ts",
-    "refresh:activities": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs scripts/refresh-activities.ts"
+    "refresh:activities": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs scripts/refresh-activities.ts",
+    "events:prune": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs scripts/prune-events.ts",
+    "events:collect": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --import ./test/register.mjs scripts/collect-events.ts"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",

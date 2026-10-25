@@ -3,11 +3,11 @@ import { describe, it } from 'node:test';
 import { museTimeoutMs, openSerpEngines, openSerpTimeoutMs } from './serviceTimeouts.ts';
 
 describe('service timeouts', () => {
-  it('defaults OpenSERP to 15s and duckduckgo,bing', () => {
+  it('defaults OpenSERP to 15s and bing,duckduckgo', () => {
     assert.equal(openSerpTimeoutMs(undefined), 15_000);
     assert.equal(openSerpTimeoutMs('8000'), 8000);
     assert.equal(openSerpTimeoutMs('90000'), 30_000);
-    assert.equal(openSerpEngines(undefined), 'duckduckgo,bing');
+    assert.equal(openSerpEngines(undefined), 'bing,duckduckgo');
     assert.equal(openSerpEngines('google, bing'), 'google,bing');
   });
 

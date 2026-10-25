@@ -8,7 +8,7 @@ import {
   PlanningViewType,
   Friend,
 } from '@/types';
-import { INITIAL_FRIENDS, MOCK_ACTIVITIES } from '@/lib/mockData';
+import { INITIAL_FRIENDS } from '@/lib/mockData';
 import { generatePlan, buildItinerary, calculateAvailabilityOverlap } from '@/lib/planner';
 import { Header } from '@/components/Header';
 import { HangoutForm } from '@/components/HangoutForm';
@@ -388,7 +388,6 @@ export default function Home() {
             >
               <Compass className="h-4 w-4" aria-hidden />
               Discover
-              <span className="tabular-nums text-ink-soft">{MOCK_ACTIVITIES.length}</span>
               {shortlist.length > 0 && (
                 <span className="bg-sun px-1.5 text-sm font-semibold text-ink tabular-nums">
                   {shortlist.length} saved
