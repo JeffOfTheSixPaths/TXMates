@@ -281,11 +281,10 @@ export async function enrichStoredActivities(
   db: DatabaseSync,
   ids: string[],
   fetchImpl?: typeof fetch,
-  options?: { maxNew?: number; includeExtras?: boolean; now?: Date }
+  options?: { maxNew?: number; includeExtras?: boolean }
 ) {
   const maxNew = options?.maxNew ?? ENRICH_BATCH;
   const includeExtras = options?.includeExtras !== false;
-  const now = options?.now ?? new Date();
   const pending = ids.filter((id) => {
     const row = getActivityRow(db, id);
     return row && !row.enriched_at;
@@ -312,7 +311,6 @@ export async function enrichStoredActivities(
     reasoningEffort: ENRICH_REASONING_EFFORT,
     cacheContent: enrichmentContentCacheable,
     fetchImpl,
-    now,
     messages: [
       {
         role: 'system',
@@ -324,6 +322,7 @@ export async function enrichStoredActivities(
   });
   if (!result.content) return;
   const parsed = parseMuseEnrichments(result.content);
+  const now = new Date();
   for (const item of listings) {
     const enrichment = parsed.get(item.id);
     if (!enrichment) continue;

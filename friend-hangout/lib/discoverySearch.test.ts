@@ -389,7 +389,7 @@ describe('discovery search', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     };
-    await enrichStoredActivities(db, ids, fetchImpl, { maxNew: 2, includeExtras: false, now });
+    await enrichStoredActivities(db, ids, fetchImpl, { maxNew: 2, includeExtras: false });
     assert.equal(calls, 1);
     assert.equal(museCallsToday(db, now), 1);
     const enriched = ids.filter((id) => getActivityRow(db, id)?.enriched_at).length;
@@ -397,7 +397,6 @@ describe('discovery search', () => {
     await enrichStoredActivities(db, ids.filter((id) => getActivityRow(db, id)?.enriched_at), fetchImpl, {
       maxNew: 2,
       includeExtras: false,
-      now,
     });
     assert.equal(calls, 1);
     db.close();
