@@ -526,6 +526,7 @@ export function toActivity(row: ActivityRow, freshness: 'live' | 'saved'): Activ
     bestFor: row.best_for,
     tags: parseJsonArray(row.tags),
     sourceUrl: row.url,
+    sourceQuery: row.source_query,
     isLiveResult: freshness === 'live',
     resultFreshness: freshness,
     kind: row.kind,

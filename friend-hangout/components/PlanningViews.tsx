@@ -399,11 +399,13 @@ export function PlanningViews({
           <p className="text-sm text-ink-soft" role="status">
             {musePending
               ? "Muse is writing. A live call can take about 25 seconds."
-              : currentPlan.isLiveAiGenerated
-                ? currentPlan.museFromCache
-                  ? `Saved Muse plan${currentPlan.museCachedAt ? `, ${formatAge(currentPlan.museCachedAt) || "earlier"}` : ""}`
-                  : `Muse Spark live, ${currentPlan.aiModelUsed || "muse-spark-1.3"}`
-                : "Muse Spark simulated"}
+              : currentPlan.museLimited
+                ? "Local fallback. Muse is not writing this plan."
+                : currentPlan.isLiveAiGenerated
+                  ? currentPlan.museFromCache
+                    ? `Saved Muse plan${currentPlan.museCachedAt ? `, ${formatAge(currentPlan.museCachedAt) || "earlier"}` : ""}`
+                    : `Muse Spark live, ${currentPlan.aiModelUsed || "muse-spark-1.3"}`
+                  : "Muse Spark simulated"}
           </p>
         </div>
         {musePending && (
@@ -412,9 +414,13 @@ export function PlanningViews({
           </p>
         )}
         {currentPlan.museLimited && !musePending && (
-          <p role="status" className="mt-4 text-base text-ink">
-            Muse daily limit reached. Showing the built-in picks.
-          </p>
+          <div role="status" className="mt-4 border-2 border-ink bg-sun-soft px-4 py-4">
+            <h3 className="text-2xl text-ink">Muse is not writing this plan</h3>
+            <p className="mt-2 max-w-prose text-base text-ink">
+              {currentPlan.museNotice ||
+                "The daily cap is used up, or Muse is off. These stops are still real places for this city, the budget, and the open hours."}
+            </p>
+          </div>
         )}
         <p className="mt-2 max-w-prose text-base text-ink-soft">{currentPlan.subtitle}</p>
         <p className="mt-4 max-w-prose text-base text-ink">{currentPlan.aiRationale}</p>

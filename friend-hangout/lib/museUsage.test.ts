@@ -85,6 +85,38 @@ describe('Muse usage guard', () => {
     db.close();
   });
 
+  it('lets only one of three parallel plan calls through a cap of one', async () => {
+    process.env.MUSE_API_KEY = 'test-key';
+    process.env.MUSE_MAX_CALLS_PER_DAY = '1';
+    const db = new DatabaseSync(':memory:');
+    const now = new Date('2026-10-25T15:00:00.000Z');
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+    const results = await Promise.all(
+      [0, 1, 2].map((index) =>
+        museComplete(db, {
+          purpose: 'plan',
+          cacheKey: `plan-race-${index}`,
+          messages: [{ role: 'user', content: 'plan' }],
+          now,
+          fetchImpl,
+        })
+      )
+    );
+    assert.equal(calls, 1);
+    assert.equal(results.filter((result) => result.limited).length, 2);
+    assert.equal(results.filter((result) => result.content).length, 1);
+    assert.equal(museCallsToday(db, now), 1);
+    db.close();
+  });
+
   it('sends only max_completion_tokens and does not count an HTTP error', async () => {
     process.env.MUSE_API_KEY = 'test-key';
     process.env.MUSE_MAX_CALLS_PER_DAY = '1';

@@ -2,9 +2,10 @@ import type { DatabaseSync } from 'node:sqlite';
 import { activityPolicy } from './activityPolicy';
 import { museTimeoutMs } from './serviceTimeouts';
 import {
-  museCallAllowed,
   readMuseContentCache,
-  recordMuseCall,
+  releaseMuseCall,
+  reserveMuseCall,
+  settleMuseCall,
   tokenUsageFromApi,
   writeMuseContentCache,
 } from './museUsage';
@@ -39,10 +40,17 @@ export async function museComplete(
 
   const key = process.env.MUSE_API_KEY?.trim();
   if (!key) return { content: null, cached: false, limited: false, truncated: false };
-  if (!museCallAllowed(db, now)) return { content: null, cached: false, limited: true, truncated: false };
 
   const base = (process.env.MUSE_BASE_URL || 'https://api.meta.ai/v1').replace(/\/$/, '');
   const model = process.env.MUSE_MODEL || 'muse-spark-1.3';
+  const reservation = reserveMuseCall(db, {
+    purpose: input.purpose,
+    cacheKey: input.cacheKey,
+    model,
+    now,
+  });
+  if (reservation === null) return { content: null, cached: false, limited: true, truncated: false };
+
   const fetchImpl = input.fetchImpl ?? fetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), museTimeoutMs());
@@ -67,23 +75,19 @@ export async function museComplete(
       usage?: unknown;
     } | null;
     const usage = tokenUsageFromApi(payload);
-    if (!response.ok) return { content: null, cached: false, limited: false, truncated: false };
+    if (!response.ok) {
+      releaseMuseCall(db, reservation);
+      return { content: null, cached: false, limited: false, truncated: false };
+    }
     if (!payload) {
-      recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', usage, now });
+      settleMuseCall(db, reservation, { status: 'error', usage });
       return { content: null, cached: false, limited: false, truncated: false };
     }
     const choice = payload.choices?.[0];
     const content = choice?.message?.content?.trim() || '';
     const truncated = choice?.finish_reason === 'length';
     const cacheable = Boolean(content) && !truncated && (input.cacheContent ? input.cacheContent(content) : true);
-    recordMuseCall(db, {
-      purpose: input.purpose,
-      cacheKey: input.cacheKey,
-      model,
-      status: cacheable ? 'ok' : 'error',
-      usage,
-      now,
-    });
+    settleMuseCall(db, reservation, { status: cacheable ? 'ok' : 'error', usage });
     if (!cacheable) return { content: content || null, cached: false, limited: false, truncated };
     writeMuseContentCache(db, {
       cacheKey: input.cacheKey,
@@ -94,7 +98,7 @@ export async function museComplete(
     });
     return { content, cached: false, limited: false, truncated: false };
   } catch {
-    recordMuseCall(db, { purpose: input.purpose, cacheKey: input.cacheKey, model, status: 'error', now });
+    settleMuseCall(db, reservation, { status: 'error' });
     return { content: null, cached: false, limited: false, truncated: false };
   } finally {
     clearTimeout(timeout);

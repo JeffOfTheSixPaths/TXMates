@@ -46,12 +46,87 @@ export function ensureMuseUsage(db: DatabaseSync) {
   `);
 }
 
+const COUNTED_MUSE_STATUSES = `('ok', 'error', 'reserved')`;
+
 export function museCallsToday(db: DatabaseSync, now = new Date()): number {
   ensureMuseUsage(db);
   const row = db
-    .prepare(`SELECT COUNT(*) AS n FROM muse_calls WHERE day = ? AND status IN ('ok', 'error')`)
+    .prepare(`SELECT COUNT(*) AS n FROM muse_calls WHERE day = ? AND status IN ${COUNTED_MUSE_STATUSES}`)
     .get(civilDate(now)) as { n: number } | undefined;
   return Number(row?.n || 0);
+}
+
+/**
+ * Claim one slot before the HTTP call. The insert commits only when the day is
+ * still under the cap, so parallel requests cannot all pass the check.
+ * Returns the row id, or null when the cap is already used.
+ */
+export function reserveMuseCall(
+  db: DatabaseSync,
+  input: {
+    purpose: string;
+    cacheKey?: string | null;
+    model?: string | null;
+    now?: Date;
+    limit?: number;
+  }
+): number | null {
+  ensureMuseUsage(db);
+  const now = input.now ?? new Date();
+  const limit = input.limit ?? museMaxCallsPerDay();
+  if (limit <= 0) return null;
+  const day = civilDate(now);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const row = db
+      .prepare(`SELECT COUNT(*) AS n FROM muse_calls WHERE day = ? AND status IN ${COUNTED_MUSE_STATUSES}`)
+      .get(day) as { n: number } | undefined;
+    if (Number(row?.n || 0) >= limit) {
+      db.exec('ROLLBACK');
+      return null;
+    }
+    const inserted = db
+      .prepare(
+        `INSERT INTO muse_calls (
+          day, called_at, purpose, cache_key, model, status, prompt_tokens, completion_tokens, total_tokens
+        ) VALUES (?, ?, ?, ?, ?, 'reserved', NULL, NULL, NULL)`
+      )
+      .run(day, now.toISOString(), input.purpose, input.cacheKey || null, input.model || null);
+    db.exec('COMMIT');
+    return Number(inserted.lastInsertRowid);
+  } catch (error) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // The transaction already ended.
+    }
+    throw error;
+  }
+}
+
+export function settleMuseCall(
+  db: DatabaseSync,
+  id: number,
+  input: { status: MuseCallStatus; usage?: MuseTokenUsage | null }
+) {
+  ensureMuseUsage(db);
+  db.prepare(
+    `UPDATE muse_calls
+     SET status = ?, prompt_tokens = ?, completion_tokens = ?, total_tokens = ?
+     WHERE id = ?`
+  ).run(
+    input.status,
+    input.usage?.promptTokens ?? null,
+    input.usage?.completionTokens ?? null,
+    input.usage?.totalTokens ?? null,
+    id
+  );
+}
+
+/** Drop a reservation that never became a counted call, such as an HTTP error. */
+export function releaseMuseCall(db: DatabaseSync, id: number) {
+  ensureMuseUsage(db);
+  db.prepare(`DELETE FROM muse_calls WHERE id = ? AND status = 'reserved'`).run(id);
 }
 
 export function museCallAllowed(db: DatabaseSync, now = new Date(), limit = museMaxCallsPerDay()): boolean {

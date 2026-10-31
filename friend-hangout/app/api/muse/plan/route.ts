@@ -19,6 +19,7 @@ import {
   museBudgetPromptRules,
   parseMusePlan,
   PLAN_MAX_COMPLETION_TOKENS,
+  localPlanCopy,
   rationaleFromActivities,
   shouldCacheMusePlan,
   uniquePlanCandidates,
@@ -26,6 +27,7 @@ import {
 import { calculateAvailabilityOverlap, filterActivities } from '@/lib/planner';
 import { activityPolicy } from '@/lib/activityPolicy';
 import { getActivitiesForLocation } from '@/lib/mockData';
+import { assemblePlanCandidates, diverseCandidates, selectPlanStops } from '@/lib/planCandidates';
 import { museCallAllowed, museCallsToday, museMaxCallsPerDay } from '@/lib/museUsage';
 import { getDownvotedActivities, isActivityDownvoted } from '@/lib/userVotes';
 import type { HangoutBudgetEstimate } from '@/lib/nessieBudget';
@@ -71,21 +73,12 @@ export async function POST(req: NextRequest) {
       // OpenSERP can be down. The catalog below still gives the plan real places.
     }
 
-    const pool: Activity[] = [];
-    if (discoveredForCity.length > 0) {
-      pool.push(...discoveredForCity);
-      if (Array.isArray(activities)) {
-        for (const act of activities) {
-          if (!pool.some((item) => item.id === act.id || item.name.toLowerCase() === act.name.toLowerCase())) {
-            pool.push(act);
-          }
-        }
-      }
-    } else if (Array.isArray(activities) && activities.length > 0) {
-      pool.push(...activities);
-    } else {
-      pool.push(...getActivitiesForLocation(location));
-    }
+    const pool = assemblePlanCandidates({
+      discovered: discoveredForCity,
+      extra: Array.isArray(activities) && activities.length > 0 ? activities : getActivitiesForLocation(location),
+      location,
+      interests: preferences.selectedInterests || [],
+    });
 
     const userIds = (preferences.friends || []).map((friend) => friend.id).filter(Boolean);
     const customerIds = (preferences.friends || [])
@@ -157,16 +150,25 @@ export async function POST(req: NextRequest) {
         aiCoordinationTip: cached.aiCoordinationTip,
         budgetExplanation: cached.budgetExplanation,
         budgetTips: cached.budgetTips,
-        activities: pickedActivities.length > 0 ? pickedActivities : candidates.slice(0, 3),
+        activities: pickedActivities.length > 0 ? pickedActivities : selectPlanStops(candidates, preferences),
       });
     }
+
+    const localStops = selectPlanStops(candidates, preferences);
+    const localCopy = localPlanCopy(localStops, cityName);
 
     if (!process.env.MUSE_API_KEY?.trim()) {
       return NextResponse.json({
         isLive: false,
+        limited: true,
+        filled: true,
         openSerpGrounded: discoveredForCity.length > 0,
         location: cityName,
-        notice: 'MUSE_API_KEY is not configured in .env.local',
+        activities: localStops,
+        aiRationale: localCopy.aiRationale,
+        aiIcebreaker: localCopy.aiIcebreaker,
+        aiCoordinationTip: localCopy.aiCoordinationTip,
+        notice: 'Muse is off, so this plan is the local fallback: real places for the city, the budget, and the open hours.',
       });
     }
 
@@ -188,8 +190,8 @@ export async function POST(req: NextRequest) {
       }
     }
     const promptCandidates = withSavedEnrichment(grounded, db);
-    const forMuse = promptCandidates.filter((activity) => !isListicleListing(activity.name));
-    const museList = (forMuse.length >= 3 ? forMuse : promptCandidates).slice(0, 10);
+    const forMuse = promptCandidates.filter((activity) => !isListicleListing(activity.name, activity.sourceUrl));
+    const museList = diverseCandidates(forMuse.length >= 3 ? forMuse : promptCandidates, 12);
 
     const friendNames = (preferences.friends || []).map((friend) => friend.name).filter(Boolean).join(', ');
     const groupTotal = hangoutGroupSize(preferences);
@@ -232,7 +234,7 @@ Target Budget: $${preferences.maxBudgetPerPerson}/person
 Optimization Goal: ${viewTypeDescriptions[viewType] || viewTypeDescriptions.overall}
 Financial context: ${budgetInfo ? JSON.stringify(budgetInfo) : 'none'}
 
-Candidate Activities (discovered via OpenSERP / local catalog):
+Candidate Activities (live search plus curated venues for this city):
 ${candidateList}
 
 Select up to 3 specific venues or events from the Candidate Activities and generate the JSON synthesis:`;
@@ -261,19 +263,17 @@ Select up to 3 specific venues or events from the Candidate Activities and gener
     }));
 
     if (result.limited) {
-      const filled = fillPlanPicks([], realPicks).picks;
       return NextResponse.json({
         isLive: false,
         limited: true,
         filled: true,
         openSerpGrounded: discoveredForCity.length > 0,
         location: cityName,
-        activities: filled,
-        aiRationale: rationaleFromActivities(
-          filled.map((activity) => activity.name),
-          cityName
-        ),
-        notice: 'Muse daily limit reached. Showing saved spots instead of a new plan.',
+        activities: localStops,
+        aiRationale: localCopy.aiRationale,
+        aiIcebreaker: localCopy.aiIcebreaker,
+        aiCoordinationTip: localCopy.aiCoordinationTip,
+        notice: 'Muse hit the daily cap. This plan is the local fallback: real places for the city, the budget, and the open hours.',
       });
     }
 
@@ -287,7 +287,7 @@ Select up to 3 specific venues or events from the Candidate Activities and gener
         return match ? { ...match, whyThisFits: pick.whyThisFits } : null;
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
-    const filled = fillPlanPicks(musePicks, realPicks);
+    const filled = fillPlanPicks(musePicks, localStops.length >= 3 ? localStops : realPicks);
     const aiRationale =
       parsed?.aiRationale ||
       rationaleFromActivities(
@@ -353,7 +353,7 @@ function rankPlanCandidates(activities: Activity[], isDownvoted?: (act: Activity
       const downRight = isDownvoted(right) ? 1 : 0;
       if (downLeft !== downRight) return downLeft - downRight;
     }
-    return Number(isListicleListing(left.name)) - Number(isListicleListing(right.name));
+    return Number(isListicleListing(left.name, left.sourceUrl)) - Number(isListicleListing(right.name, right.sourceUrl));
   });
 }
 
