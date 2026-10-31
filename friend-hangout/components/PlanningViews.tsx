@@ -436,65 +436,6 @@ export function PlanningViews({
         )}
       </section>
 
-      <section>
-        <h2 className="text-3xl font-semibold text-ink">Money</h2>
-        <p className="mt-1 max-w-prose text-base text-ink-soft">
-          {spend.budgetStatus === "under"
-            ? "Under the cap."
-            : spend.budgetStatus === "on-target"
-              ? "On the cap."
-              : "Over the cap."}{" "}
-          {budget.source === "nessie"
-            ? "The cap is a Nessie read of one customer unless you changed the amount."
-            : "Nessie did not answer, so this comparison is an estimate, not a bank balance."}
-        </p>
-        <dl className="mt-4 divide-y divide-seam border-y border-seam">
-          <div className="flex items-baseline justify-between gap-4 py-3">
-            <dt className="text-base text-ink-soft">Each person</dt>
-            <dd className="text-base font-semibold tabular-nums text-ink">
-              ${spend.totalCostPerPerson.toFixed(0)}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4 py-3">
-            <dt className="text-base text-ink-soft">Whole group ({friends.length})</dt>
-            <dd className="text-base font-semibold tabular-nums text-ink">
-              ${spend.totalGroupCost.toFixed(0)}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4 py-3">
-            <dt className="text-base text-ink-soft">Left under the cap, each</dt>
-            <dd className="text-base font-semibold tabular-nums text-ink">
-              ${spend.savingsPerPerson.toFixed(0)}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4 py-3">
-            <dt className="text-base text-ink-soft">Plan fit</dt>
-            <dd className="text-base font-semibold tabular-nums text-ink">
-              {budget.financialHealthScore} of 10
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
-
-        {squadAdvisory && (
-          <div className="mt-6 max-w-prose">
-            <p className="text-base text-ink">
-              <span className="font-semibold">
-                {spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
-                  ? "Within the squad cap"
-                  : `$${(spend.totalCostPerPerson - squadAdvisory.groupPricePoint).toFixed(0)} over the squad cap`}
-                .
-              </span>{" "}
-              Recommended ${squadAdvisory.groupPricePoint} a person, ${squadAdvisory.groupTotalPool} for the group.{" "}
-              {squadAdvisory.rationale}
-            </p>
-            {squadAdvisory.coordinationTip && (
-              <p className="mt-2 text-base text-ink-soft">{squadAdvisory.coordinationTip}</p>
-            )}
-          </div>
-        )}
-      </section>
-
       <section id="itinerary-schedule" aria-busy={!editsReady || saving}>
         <h2 className="text-3xl font-semibold text-ink">Schedule</h2>
         <p className="mt-2 max-w-prose text-base text-ink-soft">
@@ -616,6 +557,65 @@ export function PlanningViews({
             })}
           </ul>
         </div>
+      </section>
+
+      <section>
+        <h2 className="text-3xl font-semibold text-ink">Money</h2>
+        <p className="mt-1 max-w-prose text-base text-ink-soft">
+          {spend.budgetStatus === "under"
+            ? "Under the cap."
+            : spend.budgetStatus === "on-target"
+              ? "On the cap."
+              : "Over the cap."}{" "}
+          {budget.source === "nessie"
+            ? "The cap is a Nessie read of one customer unless you changed the amount."
+            : "Nessie did not answer, so this comparison is an estimate, not a bank balance."}
+        </p>
+        <dl className="mt-4 divide-y divide-seam border-y border-seam">
+          <div className="flex items-baseline justify-between gap-4 py-3">
+            <dt className="text-base text-ink-soft">Each person</dt>
+            <dd className="text-base font-semibold tabular-nums text-ink">
+              ${spend.totalCostPerPerson.toFixed(0)}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 py-3">
+            <dt className="text-base text-ink-soft">Whole group ({friends.length})</dt>
+            <dd className="text-base font-semibold tabular-nums text-ink">
+              ${spend.totalGroupCost.toFixed(0)}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 py-3">
+            <dt className="text-base text-ink-soft">Left under the cap, each</dt>
+            <dd className="text-base font-semibold tabular-nums text-ink">
+              ${spend.savingsPerPerson.toFixed(0)}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 py-3">
+            <dt className="text-base text-ink-soft">Plan fit</dt>
+            <dd className="text-base font-semibold tabular-nums text-ink">
+              {budget.financialHealthScore} of 10
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-3 max-w-prose text-base text-ink">{sameStops ? budget.budgetTip : spend.summary}</p>
+
+        {squadAdvisory && (
+          <div className="mt-6 max-w-prose">
+            <p className="text-base text-ink">
+              <span className="font-semibold">
+                {spend.totalCostPerPerson <= squadAdvisory.groupPricePoint
+                  ? "Within the squad cap"
+                  : `$${(spend.totalCostPerPerson - squadAdvisory.groupPricePoint).toFixed(0)} over the squad cap`}
+                .
+              </span>{" "}
+              Recommended ${squadAdvisory.groupPricePoint} a person, ${squadAdvisory.groupTotalPool} for the group.{" "}
+              {squadAdvisory.rationale}
+            </p>
+            {squadAdvisory.coordinationTip && (
+              <p className="mt-2 text-base text-ink-soft">{squadAdvisory.coordinationTip}</p>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
